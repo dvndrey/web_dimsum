@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 
 export async function getOwnerData() {
-    const { data, error } = supabase.from("pemilik").select;
+    const { data, error } = await supabase.from("pemilik").select("*").eq("id_pemilik", 2025);
 
     if (error) {
         throw error;
@@ -11,7 +11,7 @@ export async function getOwnerData() {
 }
 
 export async function updateData(nama, alamat, noHp, email) {
-    const { data, error } = supabase.from("pemilik").update([{
+    const { data, error } = await supabase.from("pemilik").update([{
         nama_pemilik: nama,
         alamat: alamat,
         no_hp: noHp,
