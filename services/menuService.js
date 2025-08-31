@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { uploadImage } from './storage';
 
 // ni function buat ambil data semua menu di database yaa
 export async function getMenu() {
@@ -12,7 +13,10 @@ export async function getMenu() {
 }
 
 // kalo ni buat nambah produk/menu dimsum
-export async function inputMenu(nama, deskripsi, harga, stok, url) {
+export async function inputMenu(nama, deskripsi, harga, stok, file) {
+
+    const url = await uploadImage(file);
+    
     const {data, error} = await supabase.from("menu").insert([{
         nama_menu: nama,
         deskripsi: deskripsi,

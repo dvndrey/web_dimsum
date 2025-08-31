@@ -1,7 +1,7 @@
 'use client'
 
 import Image from "next/image";
-import { getMenu } from "../../services/database.js";
+import { getMenu } from "../../services/menuService.js";
 import { useState, useEffect } from "react";
 
 export default function Home() {
