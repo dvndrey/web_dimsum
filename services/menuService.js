@@ -15,6 +15,11 @@ export async function getMenu() {
 // kalo ni buat nambah produk/menu dimsum
 export async function inputMenu(nama, deskripsi, harga, stok, file) {
 
+    const allowedTypes = ["image/jpeg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+        throw new Error("Hanya file JPG dan PNG yang diperbolehkan.");
+    }
+
     const url = await uploadImage(file);
     
     const {data, error} = await supabase.from("menu").insert([{
@@ -34,7 +39,15 @@ export async function inputMenu(nama, deskripsi, harga, stok, file) {
 }
 
 // klo ni ngeupdate, misal pas mau edit menu gitu
-export async function updateMenu(id, nama, deskripsi, harga, stok, url) {
+export async function updateMenu(id, nama, deskripsi, harga, stok, file) {
+
+    const allowedTypes = ["image/jpeg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+        throw new Error("Hanya file JPG dan PNG yang diperbolehkan.");
+    }
+    
+    const url = await uploadImage(file);
+
     const {data, error} = await supabase.from("menu").update([{
         nama_menu: nama,
         deskripsi: deskripsi,
@@ -53,6 +66,7 @@ export async function updateMenu(id, nama, deskripsi, harga, stok, url) {
 
 // ni bwat apus
 export async function hapusMenu(id) {
+
     const {data, error} = await supabase.from("menu").delete().eq("id_menu", id);
 
     if (error) {
