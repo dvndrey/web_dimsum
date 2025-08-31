@@ -29,9 +29,18 @@ export default function Home() {
         <h1>Daftar Menu</h1>
         <ul>
           {menu?.map((item) => (
-            <li key={item.id}>
-              {item.nama_menu} - Rp{item.harga}
-            </li>
+            <div key={item.id_menu}>
+              <Image
+                src={item.url_gambar}
+                alt={item.nama_menu}
+                width={180}
+                height={38}
+                priority
+              />
+              <li>
+                {item.nama_menu} - Rp {item.harga}
+              </li>
+            </div>
           ))}
         </ul>
       </main>
