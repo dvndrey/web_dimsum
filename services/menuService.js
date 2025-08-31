@@ -13,66 +13,80 @@ export async function getMenu() {
 }
 
 // kalo ni buat nambah produk/menu dimsum
-export async function inputMenu(nama, deskripsi, harga, stok, file) {
-
+export async function inputMenu(nama, deskripsi, harga, stok, files) {
     const allowedTypes = ["image/jpeg", "image/png"];
-    if (!allowedTypes.includes(file.type)) {
-        throw new Error("Hanya file JPG dan PNG yang diperbolehkan.");
-    }
 
-    const url = await uploadImage(file);
-    
+    const urls = await Promise.all(
+        files.map(async (file) => {
+            if (!allowedTypes.includes(file.type)) {
+                throw new Error("Hanya file JPG dan PNG yang diperbolehkan.");
+            }
+            return await uploadImage(file);
+        })
+    );
+
     const {data, error} = await supabase.from("menu").insert([{
         nama_menu: nama,
-        deskripsi: deskripsi,
-        harga: harga,
-        stok: stok,
-        url_gambar: url
-    }])
-    
-    if (error) {
-        throw error;
-    }
+        deskripsi,
+        harga,
+        stok,
+        url_gambar: urls
+    }]);
 
-    // return data buat mengupdate UI/tampilan web langsung tanpa perlu refrash
+    if (error) throw error;
     return data;
 }
 
 // klo ni ngeupdate, misal pas mau edit menu gitu
-export async function updateMenu(id, nama, deskripsi, harga, stok, file) {
+export async function updateMenu(id, nama, deskripsi, harga, stok, files) {
+  let urls = [];
 
+  if (files && files.length > 0) {
     const allowedTypes = ["image/jpeg", "image/png"];
-    if (!allowedTypes.includes(file.type)) {
-        throw new Error("Hanya file JPG dan PNG yang diperbolehkan.");
-    }
-    
-    const url = await uploadImage(file);
+    urls = await Promise.all(
+      files.map(async (file) => {
+        if (!allowedTypes.includes(file.type)) {
+          throw new Error("Hanya file JPG dan PNG yang diperbolehkan.");
+        }
+        return await uploadImage(file);
+      })
+    );
+  } else {
+    const { data: menu, error: getError } = await supabase
+      .from("menu")
+      .select("url_gambar")
+      .eq("id_menu", id)
+      .single();
+    if (getError) throw getError;
+    urls = menu.url_gambar;
+  }
 
-    const {data, error} = await supabase.from("menu").update([{
-        nama_menu: nama,
-        deskripsi: deskripsi,
-        harga: harga,
-        stok: stok,
-        url_gambar: url
-    }]).eq("id_menu", id)
+  const { data, error } = await supabase.from("menu").update([{
+    nama_menu: nama,
+    deskripsi,
+    harga,
+    stok,
+    url_gambar: urls,
+  }]).eq("id_menu", id);
 
-    if (error) {
-        throw error;
-    }
-
-    // return data buat mengupdate UI/tampilan web langsung tanpa perlu refrash
-    return data;
+  if (error) throw error;
+  return data;
 }
+
 
 // ni bwat apus
 export async function hapusMenu(id) {
+  const res = await fetch('/api/menu/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
 
-    const {data, error} = await supabase.from("menu").delete().eq("id_menu", id);
+  const result = await res.json();
 
-    if (error) {
-        throw error;
-    }
+  if (!res.ok) {
+    throw new Error(result.error || 'Gagal hapus menu');
+  }
 
-    // return data buat mengupdate UI/tampilan web langsung tanpa perlu refrash
-    return data;
+  return result;
 }
