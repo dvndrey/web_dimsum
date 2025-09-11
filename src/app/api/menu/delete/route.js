@@ -6,9 +6,9 @@ export async function POST(req) {
 
     // ambil menu dulu
     const { data: menu, error: getError } = await supabaseAdmin
-      .from('menu')
+      .from('produk')
       .select('url_gambar')
-      .eq('id_menu', id)
+      .eq('id_produk', id)
       .single();
     if (getError) throw getError;
 
@@ -25,9 +25,9 @@ export async function POST(req) {
 
     // hapus record di tabel
     const { data, error } = await supabaseAdmin
-      .from('menu')
+      .from('produk')
       .delete()
-      .eq('id_menu', id);
+      .eq('id_produk', id);
     if (error) throw error;
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });

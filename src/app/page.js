@@ -1,7 +1,7 @@
 'use client'
 
 import Image from "next/image";
-import { getMenu } from "../../services/menuService.js";
+import { getProduk } from "../../services/productService.js";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -9,7 +9,7 @@ export default function Home() {
 
   useEffect(() => {
     async function fetchData() {
-      const data = await getMenu();
+      const data = await getProduk();
       setMenu(data);
     }
     fetchData();
