@@ -11,7 +11,7 @@ export async function getProduk() {
 }
 
 // tambah produk
-export async function addProduk(nama, deskripsi, id_kategori, id_pemilik, files) {
+export async function addProduk(nama, deskripsi, id_kategori, files) {
   const allowedTypes = ["image/jpeg", "image/png"];
   const urls = await Promise.all(
     files.map(async (file) => {
@@ -24,10 +24,10 @@ export async function addProduk(nama, deskripsi, id_kategori, id_pemilik, files)
 
   const { data, error } = await supabase.from("produk").insert([{
     nama_produk: nama,
-    deskripsi,
-    id_kategori,
-    id_pemilik,
-    url_gambar: urls
+    deskripsi: deskripsi,
+    url_gambar: urls,
+    id_kategori: id_kategori,
+    id_pemilik: 2025,
   }]);
 
   if (error) throw error;
@@ -71,7 +71,7 @@ export async function updateProduk(id, nama, deskripsi, id_kategori, files) {
 
 // hapus produk
 export async function deleteProduk(id) {
-  const res = await fetch('/api/produk/delete', {
+  const res = await fetch('/api/menu/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),

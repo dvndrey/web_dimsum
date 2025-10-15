@@ -1,0 +1,343 @@
+"use client";
+import { useEffect, useState } from "react";
+import { getCategory, addCategory, updateCategory, deleteCategory } from "../../../services/categoryService";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus, Edit3, Trash2, Tag, Search, FolderOpen } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+export default function CategoryTab() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  // modal state
+  const [open, setOpen] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [namaKategori, setNamaKategori] = useState("");
+  
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+  
+  async function fetchCategories() {
+    try {
+      setLoading(true);
+      const data = await getCategory();
+      setCategories(data);
+    } catch (err) {
+      toast.error("Gagal memuat kategori");
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  function openAddModal() {
+    setEditData(null);
+    setNamaKategori("");
+    setOpen(true);
+  }
+  
+  function openEditModal(cat) {
+    setEditData(cat);
+    setNamaKategori(cat.nama_kategori);
+    setOpen(true);
+  }
+  
+  async function handleSubmit() {
+    if (!namaKategori.trim()) {
+      toast.error("Nama kategori tidak boleh kosong");
+      return;
+    }
+    try {
+      if (editData) {
+        await updateCategory(editData.id_kategori, namaKategori);
+        toast.success("Kategori berhasil diperbarui");
+      } else {
+        await addCategory(namaKategori);
+        toast.success("Kategori berhasil ditambahkan");
+      }
+      setOpen(false);
+      fetchCategories();
+    } catch (err) {
+      toast.error(err.message || "Terjadi kesalahan");
+    }
+  }
+  
+  async function handleDelete(id) {
+    try {
+      await deleteCategory(id);
+      toast.success("Kategori berhasil dihapus");
+      fetchCategories();
+    } catch (err) {
+      toast.error("Gagal menghapus kategori");
+    }
+  }
+  
+  const filteredCategories = categories.filter(cat =>
+    cat.nama_kategori.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  return (
+    <div className="p-6 space-y-6 bg-transparent">
+      {/* Header Actions */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+            <Tag className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">Kategori Produk</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{categories.length} kategori tersedia</p>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Cari kategori..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full sm:w-64 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 focus:bg-white focus:dark:bg-gray-800 transition-colors"
+            />
+          </div>
+          <Button 
+            onClick={openAddModal} 
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus className="h-4 w-4" />
+            Tambah Kategori
+          </Button>
+        </div>
+      </div>
+      
+      {/* Content */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <span>Memuat kategori...</span>
+          </div>
+        </div>
+      ) : filteredCategories.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+          <FolderOpen className="h-12 w-12 mb-4 text-gray-300" />
+          <h3 className="text-lg font-semibold mb-2">
+            {searchTerm ? "Kategori tidak ditemukan" : "Belum ada kategori"}
+          </h3>
+          <p className="text-sm text-center mb-4 max-w-md">
+            {searchTerm 
+              ? `Tidak ada kategori yang cocok dengan "${searchTerm}"`
+              : "Mulai dengan menambahkan kategori pertama untuk mengorganisasi produk Anda"
+            }
+          </p>
+          {!searchTerm && (
+            <Button 
+              onClick={openAddModal} 
+              variant="outline"
+              className="bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Tambah Kategori Pertama
+            </Button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Kategori
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Aksi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredCategories.map((cat, index) => (
+                    <tr key={cat.id_kategori} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="ml-3">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {cat.nama_kategori}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditModal(cat)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-gray-700"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Hapus Kategori</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Apakah Anda yakin ingin menghapus kategori {cat.nama_kategori}? 
+                                  Tindakan ini tidak dapat dibatalkan.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(cat.id_kategori)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Hapus
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {filteredCategories.map((cat) => (
+              <div 
+                key={cat.id_kategori} 
+                className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3 flex-1">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 dark:text-white truncate">
+                        {cat.nama_kategori}
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditModal(cat)}
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-gray-700"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Hapus Kategori</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Apakah Anda yakin ingin menghapus kategori {cat.nama_kategori}?
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Batal</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(cat.id_kategori)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Hapus
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      
+      {/* Modal Tambah/Edit */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-blue-600" />
+              {editData ? "Edit Kategori" : "Tambah Kategori"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="kategori">Nama Kategori</Label>
+              <Input
+                id="kategori"
+                placeholder="Masukkan nama kategori..."
+                value={namaKategori}
+                onChange={(e) => setNamaKategori(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+                className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button 
+              onClick={() => setOpen(false)} 
+              variant="outline"
+              className="bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-800 dark:text-white"
+            >
+              Batal
+            </Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!namaKategori.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {editData ? "Perbarui" : "Tambah"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

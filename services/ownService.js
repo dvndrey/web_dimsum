@@ -1,26 +1,23 @@
 import { supabase } from "../lib/supabase";
 
-export async function getOwnerData() {
-    const { data, error } = await supabase.from("pemilik").select("*").eq("id_pemilik", 2025);
-
-    if (error) {
-        throw error;
-    }
-
-    return data;
+// ambil data pemilik by id
+export async function getOwnerData(id = 2025) {
+  const { data, error } = await supabase
+    .from("pemilik")
+    .select("*")
+    .eq("id_pemilik", id)
+    .single();
+  if (error) throw error;
+  return data;
 }
 
-export async function updateData(nama, alamat, noHp, email) {
-    const { data, error } = await supabase.from("pemilik").update([{
-        nama_pemilik: nama,
-        alamat: alamat,
-        no_hp: noHp,
-        email: email
-    }]).eq("id_pemilik", 2025)
-
-    if (error) {
-        throw error;
-    }
-
-    return data
+// update data pemilik
+export async function updateData(profile, id = 2025) {
+  const { data, error } = await supabase
+    .from("pemilik")
+    .update(profile)
+    .eq("id_pemilik", id)
+    .single();
+  if (error) throw error;
+  return data;
 }
