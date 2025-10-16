@@ -58,7 +58,7 @@ export default function AdminPage() {
       "Produk": "Manajemen Produk",
       "Kategori": "Manajemen Kategori", 
       "Pesanan": "Manajemen Pesanan",
-      "Settings": "Pengaturan Toko"
+      "Settings": " "
     };
     return titles[activePage] || "Dashboard";
   };
