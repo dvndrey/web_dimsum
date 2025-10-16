@@ -112,12 +112,6 @@ export default function AdminPage() {
                 <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
                   {getPageTitle()}
                 </h2>
-                <p className="text-gray-600">
-                  {activePage === "Produk" && "Kelola semua produk dan varian Anda"}
-                  {activePage === "Kategori" && "Atur kategori produk untuk organisasi yang lebih baik"}
-                  {activePage === "Pesanan" && "Pantau dan kelola pesanan pelanggan"}
-                  {activePage === "Settings" && "Konfigurasi pengaturan toko Anda"}
-                </p>
               </div>
 
               {/* Content Area */}

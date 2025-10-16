@@ -102,7 +102,20 @@ export async function getDashboardSummary() {
   // Ambil semua pesanan untuk hitung total & pemasukan
   const { data: orders, error } = await supabase
     .from("pesanan")
-    .select("total_harga, status_pesanan, dibuat_pada, id_pesanan")
+    .select(`
+      id_pesanan,
+      status_pesanan,
+      total_harga,
+      dibuat_pada,
+      pembeli!inner(nama_pembeli, alamat_pembeli, nomer_pembeli),
+      pesanan_item!inner(
+        jumlah_item,
+        harga_satuan,
+        subtotal_item,
+        produk!inner(nama_produk),
+        varian!inner(nama_varian)
+      )
+    `)
     .order("dibuat_pada", { ascending: false });
 
   if (error) throw error;

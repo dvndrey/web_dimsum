@@ -6,20 +6,21 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, TrendingUp, Clock, CheckCircle, Truck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
-const STATUS_ICONS = {
-  pending: <Clock className="h-4 w-4 text-yellow-600" />,
-  diproses: <Package className="h-4 w-4 text-blue-600" />,
-  dikirim: <Truck className="h-4 w-4 text-purple-600" />,
-  selesai: <CheckCircle className="h-4 w-4 text-green-600" />,
+const STATUS_CONFIG = {
+  pending: { label: "Menunggu", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  diproses: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: Package },
+  dikirim: { label: "Dikirim", color: "bg-purple-100 text-purple-800", icon: Truck },
+  selesai: { label: "Selesai", color: "bg-green-100 text-green-800", icon: CheckCircle },
 };
 
-const STATUS_LABELS = {
-  pending: "Menunggu",
-  diproses: "Diproses",
-  dikirim: "Dikirim",
-  selesai: "Selesai",
-};
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Menunggu" },
+  { value: "diproses", label: "Diproses" },
+  { value: "dikirim", label: "Dikirim" },
+  { value: "selesai", label: "Selesai" },
+];
 
 export default function DashboardTab({ onViewAllOrders }) {
   const [summary, setSummary] = useState({
@@ -98,34 +99,50 @@ export default function DashboardTab({ onViewAllOrders }) {
             Belum ada pesanan
           </div>
         ) : (
-          <div className="space-y-4">
-            {summary.recentOrders.map((order) => (
-              <div
-                key={order.id_pesanan}
-                className="flex items-center justify-between p-4 rounded-lg bg-white shadow-sm"
-              >
-                <div>
-                  <div className="font-medium">
-                    #{order.id_pesanan.substring(0, 8).toUpperCase()}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(order.dibuat_pada).toLocaleString("id-ID")}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold">
-                    Rp{Number(order.total_harga).toLocaleString("id-ID")}
-                  </div>
-                  <div className="flex items-center justify-end gap-1 mt-1">
-                    {STATUS_ICONS[order.status_pesanan] || <Clock className="h-4 w-4 text-gray-400" />}
-                    <span className="text-xs text-gray-600">
-                      {STATUS_LABELS[order.status_pesanan] || order.status_pesanan}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-4 font-bold text-gray-700">Pesanan</th>
+                <th className="p-4 font-bold text-gray-700">Pembeli</th>
+                <th className="p-4 font-bold text-gray-700">Total</th>
+                <th className="p-4 font-bold text-gray-700">Tanggal</th>
+                <th className="p-4 font-bold text-gray-700">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.recentOrders.map((order) => {
+                const StatusIcon = STATUS_CONFIG[order.status_pesanan]?.icon || Clock;
+                return (
+                  <tr key={order.id_pesanan} className="border-t text-center bg-white hover:bg-gray-50">
+                    <td className="p-4">
+                      <div className="text-sm text-gray-900">
+                        #{order.id_pesanan.substring(0, 8).toUpperCase()}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div>{order.pembeli.nama_pembeli}</div>
+                    </td>
+                    <td className="p-4">
+                      Rp{Number(order.total_harga).toLocaleString("id-ID")}
+                    </td>
+                    <td>
+                      <div className="p-4">
+                        {new Date(order.dibuat_pada).toLocaleString("id-ID")}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <Badge className={STATUS_CONFIG[order.status_pesanan]?.color || "bg-gray-100 text-gray-800"}>
+                        <StatusIcon className="h-3 w-3 mr-1 inline" />
+                        {STATUS_CONFIG[order.status_pesanan]?.label || order.status_pesanan}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         )}
       </div>
     </div>
