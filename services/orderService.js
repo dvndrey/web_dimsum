@@ -1,203 +1,115 @@
+// services/orderService.js
 import { supabase } from "../lib/supabase";
 
 /**
- * Add new order
- * @param {Object} buyer - { id_pembeli } OR { nama, alamat, no_hp }
- * @param {Array} items - [{ id_varian, jumlah_item }]  // id_varian required
- * @returns inserted pesanan with items
- *
- * NOTE: This function does sequential DB calls. For production-critical stock integrity
- * you should implement a DB transaction or a stored procedure / RPC on the DB side.
+ * Simpan data pembeli, buat pesanan, dan simpan item pesanan
+ * @param {Object} pembeliData - { nama_pembeli, alamat_pembeli, nomer_pembeli }
+ * @param {Array} cartItems - [{ id_produk, id_varian, jumlah_item, harga_satuan }]
  */
-export async function addOrder(buyer, items) {
-  // 1) ensure pembeli
-  let id_pembeli = buyer?.id_pembeli;
-  if (!id_pembeli) {
-    const { data: pembeliData, error: pembeliErr } = await supabase
+export async function createOrder(pembeliData, cartItems) {
+  const { nama_pembeli, alamat_pembeli, nomer_pembeli } = pembeliData;
+
+  // 1. Cek atau buat pembeli (opsional: bisa pakai nomor HP sebagai unique key)
+  const { data: existingPembeli, error: findError } = await supabase
+    .from("pembeli")
+    .select("id_pembeli")
+    .eq("nomer_pembeli", nomer_pembeli)
+    .single();
+
+  let id_pembeli;
+  if (existingPembeli) {
+    id_pembeli = existingPembeli.id_pembeli;
+  } else {
+    // Buat pembeli baru
+    const { data: newPembeli, error: insertPembeliError } = await supabase
       .from("pembeli")
-      .insert([{
-        nama: buyer.nama,
-        alamat: buyer.alamat,
-        no_hp: buyer.no_hp
-      }])
-      .select()
+      .insert([{ nama_pembeli, alamat_pembeli, nomer_pembeli }])
+      .select("id_pembeli")
       .single();
-    if (pembeliErr) throw pembeliErr;
-    id_pembeli = pembeliData.id_pembeli;
+
+    if (insertPembeliError) throw insertPembeliError;
+    id_pembeli = newPembeli.id_pembeli;
   }
 
-  // 2) fetch varian data (harga) for all items
-  const varianIds = items.map(i => i.id_varian);
-  const { data: varianRows, error: varianErr } = await supabase
-    .from("varian")
-    .select("id_varian, id_produk, harga_varian, stok_varian")
-    .in("id_varian", varianIds);
-  if (varianErr) throw varianErr;
+  // 2. Hitung total harga
+  const total_harga = cartItems.reduce(
+    (sum, item) => sum + item.harga_satuan * item.jumlah_item,
+    0
+  );
 
-  // map id_varian -> varian row
-  const varianMap = {};
-  for (const v of varianRows) varianMap[v.id_varian] = v;
-
-  // build pesanan_item objects and compute total
-  const itemsToInsert = [];
-  let total = 0;
-  for (const it of items) {
-    const v = varianMap[it.id_varian];
-    if (!v) throw new Error(`Varian tidak ditemukan: ${it.id_varian}`);
-    if (typeof it.jumlah_item !== "number" || it.jumlah_item <= 0) {
-      throw new Error("Jumlah item harus angka > 0");
-    }
-    // optional stock check
-    if (v.stok_varian != null && v.stok_varian < it.jumlah_item) {
-      throw new Error(`Stok varian tidak cukup untuk id_varian ${it.id_varian}`);
-    }
-
-    const harga_satuan = Number(v.harga_varian);
-    const subtotal_item = harga_satuan * it.jumlah_item;
-    total += subtotal_item;
-
-    itemsToInsert.push({
-      id_produk: v.id_produk,
-      id_varian: it.id_varian,
-      jumlah_item: it.jumlah_item,
-      harga_satuan,
-      subtotal_item
-    });
-  }
-
-  // 3) insert pesanan header
-  const { data: pesananData, error: pesananErr } = await supabase
+  // 3. Buat pesanan
+  const { data: newPesanan, error: insertPesananError } = await supabase
     .from("pesanan")
-    .insert([{
-      id_pembeli,
-      total,
-      status: "pending" // default
-    }])
-    .select()
+    .insert([{ id_pembeli, total_harga, status_pesanan: "pending" }])
+    .select("id_pesanan")
     .single();
-  if (pesananErr) throw pesananErr;
-  const id_pesanan = pesananData.id_pesanan;
 
-  // 4) insert pesanan_item (attach id_pesanan)
-  const itemsPayload = itemsToInsert.map(it => ({ ...it, id_pesanan }));
-  const { data: itemsInserted, error: itemsErr } = await supabase
+  if (insertPesananError) throw insertPesananError;
+  const id_pesanan = newPesanan.id_pesanan;
+
+  // 4. Simpan item pesanan
+  const pesananItems = cartItems.map((item) => ({
+    id_pesanan,
+    id_produk: item.id_produk,
+    id_varian: item.id_varian,
+    jumlah_item: item.jumlah_item,
+    harga_satuan: item.harga_satuan,
+  }));
+
+  const { error: insertItemsError } = await supabase
     .from("pesanan_item")
-    .insert(itemsPayload)
-    .select();
-  if (itemsErr) {
-    // rollback simple: try to delete pesanan header we just created
-    await supabase.from("pesanan").delete().eq("id_pesanan", id_pesanan);
-    throw itemsErr;
-  }
+    .insert(pesananItems);
 
-  // 5) decrement stok_varian for each varian (best-effort)
-  for (const it of items) {
-    // subtract stok_varian = stok_varian - jumlah_item if stok_varian >= jumlah_item
-    // Here we do a naive update; for atomic check you'd use DB function.
-    const { data: updated, error: updErr } = await supabase
-      .from("varian")
-      .update({
-        stok_varian: supabase.rpc ? null : null // placeholder to show note
-      })
-      .eq("id_varian", it.id_varian);
-    // Note: Supabase JS doesn't support expression updates like stok_varian = stok_varian - x.
-    // So we need to first fetch current stok and then set stok_varian = current - jumlah.
-    // Implement properly below:
-  }
+  if (insertItemsError) throw insertItemsError;
 
-  // Proper stock decrement (fetch current and update)
-  for (const it of items) {
-    const { data: cur, error: gErr } = await supabase
-      .from("varian")
-      .select("stok_varian")
-      .eq("id_varian", it.id_varian)
-      .single();
-    if (gErr) {
-      // can't read stock — skip or log
-      console.warn("Gagal baca stok varian", it.id_varian, gErr);
-      continue;
-    }
-    const newStock = (cur.stok_varian == null) ? null : (cur.stok_varian - it.jumlah_item);
-    if (newStock != null && newStock < 0) {
-      // roll back: delete items + pesanan (basic rollback)
-      await supabase.from("pesanan_item").delete().eq("id_pesanan", id_pesanan);
-      await supabase.from("pesanan").delete().eq("id_pesanan", id_pesanan);
-      throw new Error(`Stok varian tidak mencukupi saat commit untuk ${it.id_varian}`);
-    }
-    if (newStock != null) {
-      const { error: uErr } = await supabase
-        .from("varian")
-        .update({ stok_varian: newStock })
-        .eq("id_varian", it.id_varian);
-      if (uErr) {
-        console.warn("Gagal update stok varian", it.id_varian, uErr);
-        // best-effort; we don't rollback here automatically
-      }
-    }
-  }
-
-  // 6) return pesanan + items
-  const { data: orderWithItems, error: fetchErr } = await supabase
-    .from("pesanan")
-    .select("*, pembeli(*), pesanan_item(*, produk(*), varian(*))")
-    .eq("id_pesanan", id_pesanan)
-    .single();
-  if (fetchErr) throw fetchErr;
-  return orderWithItems;
+  return { id_pesanan, id_pembeli };
 }
 
-/**
- * Get list of orders (optionally filter by status)
- */
-export async function getOrders({ status } = {}) {
-  let query = supabase
-    .from("pesanan")
-    .select("*, pembeli(*), pesanan_item(*, produk(*), varian(*))")
-    .order("created_at", { ascending: false });
-
-  if (status) query = query.eq("status", status);
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
-}
-
-/**
- * Get order detail by id_pesanan
- */
-export async function getOrderById(id_pesanan) {
+export async function getOrders() {
   const { data, error } = await supabase
     .from("pesanan")
-    .select("*, pembeli(*), pesanan_item(*, produk(*), varian(*))")
-    .eq("id_pesanan", id_pesanan)
-    .single();
+    .select(`
+      id_pesanan,
+      status_pesanan,
+      total_harga,
+      dibuat_pada,
+      pembeli!inner(nama_pembeli, alamat_pembeli, nomer_pembeli),
+      pesanan_item!inner(
+        jumlah_item,
+        harga_satuan,
+        subtotal_item,
+        produk!inner(nama_produk),
+        varian!inner(nama_varian)
+      )
+    `)
+    .order("dibuat_pada", { ascending: false });
+
   if (error) throw error;
   return data;
 }
 
-/**
- * Update order status (ex: 'pending' -> 'diproses' -> 'dikirim' -> 'selesai')
- */
+// Update status pesanan
 export async function updateOrderStatus(id_pesanan, status) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("pesanan")
-    .update({ status })
-    .eq("id_pesanan", id_pesanan)
-    .select()
-    .single();
+    .update({ status_pesanan: status })
+    .eq("id_pesanan", id_pesanan);
+
   if (error) throw error;
-  return data;
 }
 
-/**
- * Optional: delete order (header + items)
- */
-export async function deleteOrder(id_pesanan) {
-  // delete items first
-  const { error: delItemsErr } = await supabase.from("pesanan_item").delete().eq("id_pesanan", id_pesanan);
-  if (delItemsErr) throw delItemsErr;
-  // delete header
-  const { data, error } = await supabase.from("pesanan").delete().eq("id_pesanan", id_pesanan);
+export async function getDashboardSummary() {
+  // Ambil semua pesanan untuk hitung total & pemasukan
+  const { data: orders, error } = await supabase
+    .from("pesanan")
+    .select("total_harga, status_pesanan, dibuat_pada, id_pesanan")
+    .order("dibuat_pada", { ascending: false });
+
   if (error) throw error;
-  return data;
+
+  const totalOrders = orders.length;
+  const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.total_harga) || 0), 0);
+  const recentOrders = orders.slice(0, 5); // 5 terbaru
+
+  return { totalOrders, totalRevenue, recentOrders };
 }

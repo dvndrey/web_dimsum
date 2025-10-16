@@ -7,10 +7,13 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import ProdukTab from "@/components/produk/ProdukTab";
 import { Toaster } from "sonner";
 import CategoryTab from "@/components/produk/CategoryTab";
+import DashboardTab from "@/components/produk/DashboardTab";
 import SettingsTab from "@/components/produk/SettingsTab";
+import PesananTab from "@/components/produk/PesananTab";
 import { Sun, Moon, Search, Bell, User, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,8 +24,12 @@ import {
 export default function AdminPage() {
   const { user, loading, logout: authLogout } = useAuth();
   const router = useRouter();
-  const [activePage, setActivePage] = useState("Produk");
+  const [activePage, setActivePage] = useState("Dashboard");
   const [darkMode, setDarkMode] = useState(false);
+
+  const handleViewAllOrders = () => {
+    setActivePage("Pesanan");
+  };
 
   // Redirect ke /login jika tidak ada user dan loading sudah selesai
   useEffect(() => {
@@ -51,6 +58,7 @@ export default function AdminPage() {
   // Fungsi untuk mendapatkan judul halaman aktif
   const getPageTitle = () => {
     const titles = {
+      "Dashboard": "Dashboard Admin",
       "Produk": "Manajemen Produk",
       "Kategori": "Manajemen Kategori", 
       "Pesanan": "Manajemen Pesanan",
@@ -61,36 +69,19 @@ export default function AdminPage() {
 
   return (
     <SidebarProvider>
-      <div className={`flex h-screen w-screen overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors`}>
+      <div className={`flex h-screen w-screen overflow-hidden bg-gray-50 transition-colors`}>
         <AppSidebar activePage={activePage} setActivePage={setActivePage} />
         <div className="flex flex-1 flex-col min-w-0">
           {/* Enhanced Header */}
-          <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          <header className="bg-[#F5F2E9] border-b border-gray-300 shadow-sm">
             <div className="flex items-center justify-between px-4 py-3 lg:px-6">
               <div className="flex items-center space-x-4">
                 <SidebarTrigger className="lg:hidden" />
-                <div className="flex items-center space-x-3">
-                  <div className="hidden sm:block w-2 h-8 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></div>
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white hidden sm:block">Say Endulque</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 hidden lg:block">{getPageTitle()}</p>
-                  </div>
-                </div>
               </div>
-
-
+              
               {/* Header Actions */}
               <div className="flex items-center space-x-2 lg:space-x-4">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => setDarkMode(!darkMode)}
-                  aria-label="Toggle dark mode"
-                  className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                >
-                  {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                </Button>
-                
+                <Link href="/">Home</Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="rounded-full">
@@ -114,14 +105,14 @@ export default function AdminPage() {
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto bg-[#F5F2E9]">
             <div className="container mx-auto p-4 lg:p-6">
               {/* Page Header */}
               <div className="mb-6">
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
                   {getPageTitle()}
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600">
                   {activePage === "Produk" && "Kelola semua produk dan varian Anda"}
                   {activePage === "Kategori" && "Atur kategori produk untuk organisasi yang lebih baik"}
                   {activePage === "Pesanan" && "Pantau dan kelola pesanan pelanggan"}
@@ -130,18 +121,13 @@ export default function AdminPage() {
               </div>
 
               {/* Content Area */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 min-h-[600px]">
+              <div className="rounded-xl min-h-[600px]">
+                {activePage === "Dashboard" && (
+                  <DashboardTab onViewAllOrders={handleViewAllOrders} />
+                )}
                 {activePage === "Produk" && <ProdukTab />}
                 {activePage === "Kategori" && <CategoryTab />}
-                {activePage === "Pesanan" && (
-                  <div className="flex items-center justify-center h-96">
-                    <div className="text-center">
-                      <div className="text-6xl mb-4">🛒</div>
-                      <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Pesanan</h3>
-                      <p className="text-gray-500 dark:text-gray-400">Fitur ini masih dalam pengembangan</p>
-                    </div>
-                  </div>
-                )}
+                {activePage === "Pesanan" && <PesananTab />}
                 {activePage === "Settings" && <SettingsTab />}
               </div>
             </div>
