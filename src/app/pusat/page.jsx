@@ -52,7 +52,7 @@ export default function AdminPage() {
 
   // Jika tidak ada user, jangan render apa-apa → akan diarahkan ke /login oleh useEffect
   if (!user) {
-    return null; // ✅ TIDAK ADA FLASH UI ADMIN — AMAN!
+    return null;
   }
 
   // Fungsi untuk mendapatkan judul halaman aktif

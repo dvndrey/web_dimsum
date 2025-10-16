@@ -68,6 +68,7 @@ function formatUTCtoDateOnly(utcDateString) {
     day: "2-digit"
   });
 }
+
 export default function PesananTab() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -156,7 +157,7 @@ export default function PesananTab() {
               <SelectTrigger className="w-full sm:w-48 bg-gray-50 border-gray-200">
                 <SelectValue placeholder="Semua Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#A65C37] text-white">
                 <SelectItem value="all">Semua Status</SelectItem>
                 {STATUS_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
@@ -173,7 +174,7 @@ export default function PesananTab() {
             size="sm"
             onClick={loadOrders}
             disabled={loading}
-            className="flex items-center gap-2 w-full sm:w-auto"
+            className="flex items-center gap-2 w-full sm:w-auto bg-[#A65C37] text-white hover:bg-[#7f4629] hover:text-white"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -197,14 +198,14 @@ export default function PesananTab() {
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-[#a96543] text-white">
               <tr>
-                <th className="p-4 font-bold text-gray-700">Pesanan</th>
-                <th className="p-4 font-bold text-gray-700">Pembeli</th>
-                <th className="p-4 font-bold text-gray-700">Total</th>
-                <th className="p-4 font-bold text-gray-700">Status</th>
-                <th className="p-4 font-bold text-gray-700">Tanggal</th>
-                <th className="p-4 font-bold text-gray-700">Aksi</th>
+                <th className="p-4 font-bold">Pesanan</th>
+                <th className="p-4 font-bold">Pembeli</th>
+                <th className="p-4 font-bold">Total</th>
+                <th className="p-4 font-bold">Status</th>
+                <th className="p-4 font-bold">Tanggal</th>
+                <th className="p-4 font-bold">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -334,7 +335,7 @@ export default function PesananTab() {
             </div>
 
           <DialogFooter>
-            <Button onClick={() => setIsDetailOpen(false)}>Tutup</Button>
+            <Button className="bg-[#A65C37] text-white hover:bg-[#7f4629] border-black" onClick={() => setIsDetailOpen(false)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

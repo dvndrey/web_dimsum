@@ -88,11 +88,20 @@ export default function ProdukTab() {
     harga: "",
     stok: ""
   });
-  
+
+  const [imagePreviews, setImagePreviews] = useState([]); // untuk gambar baru
+  const [existingImages, setExistingImages] = useState([]); // untuk gambar lama saat edit
+
   useEffect(() => {
     loadAll();
   }, []);
-  
+
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [imagePreviews]);
+
   async function loadAll() {
     setLoading(true);
     try {
@@ -109,6 +118,8 @@ export default function ProdukTab() {
   
   function openAdd() {
     setEditingProduk(null);
+    setExistingImages([]);
+    setImagePreviews([]);
     setShowAddModal(true);
     setTimeout(() => {
       if (namaRef.current) namaRef.current.value = "";
@@ -118,14 +129,23 @@ export default function ProdukTab() {
     }, 50);
   }
   
+  function handleFileChange(e) {
+    const files = Array.from(e.target.files);
+    setExistingImages([]); 
+    setImagePreviews(files.map(file => URL.createObjectURL(file)));
+  }
+
   function openEdit(p) {
     setEditingProduk(p);
     setShowAddModal(true);
+    setExistingImages(p.url_gambar || []); 
+    setImagePreviews([]);
+
     setTimeout(() => {
       if (namaRef.current) namaRef.current.value = p.nama_produk || "";
       if (descRef.current) descRef.current.value = p.deskripsi || "";
       if (categoryRef.current) categoryRef.current.value = p.id_kategori || "";
-      if (filesRef.current) filesRef.current.value = null;
+      if (filesRef.current) filesRef.current.value = null; 
     }, 50);
   }
   
@@ -246,7 +266,7 @@ export default function ProdukTab() {
         {/* Variant Count */}
         {p?.varian?.length > 0 && (
           <div className="absolute top-3 right-3">
-            <Badge className="bg-blue-600 text-white text-xs">
+            <Badge className="bg-[#A65C37] text-white text-xs">
               {p.varian.length} varian
             </Badge>
           </div>
@@ -287,7 +307,7 @@ export default function ProdukTab() {
               <Button
                 size="sm"
                 variant="destructive"
-                className="w-full text-xs bg-red-600 hover:bg-red-700 text-white"
+                className="w-full text-xs bg-[#A65C37] hover:bg-[#7f4629] text-white"
               >
                 <Trash2 className="h-3 w-3 mr-1" />
                 Hapus
@@ -302,10 +322,10 @@ export default function ProdukTab() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogCancel className="bg-[#E2DCD8] hover:bg-[#c7c3c1] border-black">Batal</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => handleDeleteProduk(p.id_produk)}
-                  className="bg-red-600 hover:bg-red-700"
+                  className="bg-[#A65C37] hover:bg-[#7f4629]"
                 >
                   Hapus
                 </AlertDialogAction>
@@ -341,7 +361,7 @@ export default function ProdukTab() {
           <h3 className="font-medium text-gray-900 dark:text-white truncate">{p.nama_produk}</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{p.deskripsi}</p>
           <div className="flex items-center gap-4 mt-2">
-            <span className="text-xs text-blue-600">
+            <span className="text-xs text-[#A65C37]">
               {p?.varian?.length || 0} varian
             </span>
           </div>
@@ -384,83 +404,78 @@ export default function ProdukTab() {
   );
   
   return (
-    <div className="p-6 space-y-6 bg-transparent">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
-            <Package className="h-5 w-5 text-green-600" />
-          </div>
           <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">Manajemen Produk</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{produk.length} produk tersedia</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Jumlah Produk: {produk.length}</p>
           </div>
         </div>
+
         <div className="flex items-center gap-3 w-full lg:w-auto">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Cari produk..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 focus:bg-white focus:dark:bg-gray-800 transition-colors"
+                />
+              </div>
+              {/* Category Filter */}
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-full sm:w-48 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white">
+                  <SelectValue placeholder="Semua Kategori" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                    <SelectItem value="all">Semua Kategori</SelectItem>
+                    {categories.map(cat => (
+                    <SelectItem key={cat.id_kategori} value={String(cat.id_kategori)}>
+                        {cat.nama_kategori}
+                    </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
           <Button 
             onClick={openAdd} 
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+            className="flex items-center gap-2 bg-[#A65C37] hover:bg-[#7f4629] text-white"
           >
             <Plus className="h-4 w-4" />
             Tambah Produk
           </Button>
+            {/* View Toggle */}
+            <div className="flex items-center gap-1 p-1 rounded">
+                <Button
+                    size="sm"
+                    className={`${viewMode === "grid" ? "bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
+                    onClick={() => setViewMode("grid")}
+                >
+                    <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                    size="sm"
+                    className={`${viewMode === "list" ? "bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
+                    onClick={() => setViewMode("list")}
+                >
+                    <List className="h-4 w-4" />
+                </Button>
+            </div>
+          </div>
         </div>
       </div>
       
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Cari produk..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 focus:bg-white focus:dark:bg-gray-800 transition-colors"
-            />
-          </div>
-          {/* Category Filter */}
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white">
-              <SelectValue placeholder="Semua Kategori" />
-            </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                <SelectItem value="all">Semua Kategori</SelectItem>
-                {categories.map(cat => (
-                <SelectItem key={cat.id_kategori} value={String(cat.id_kategori)}>
-                    {cat.nama_kategori}
-                </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {/* View Toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-            <Button
-                size="sm"
-                variant={viewMode === "grid" ? "default" : "outline"}
-                onClick={() => setViewMode("grid")}
-                className="px-3"
-            >
-                <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-                size="sm"
-                variant={viewMode === "list" ? "default" : "outline"}
-                onClick={() => setViewMode("list")}
-                className="px-3"
-            >
-                <List className="h-4 w-4" />
-            </Button>
-        </div>
-      </div>
       
       {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
-            <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             <span>Memuat produk...</span>
           </div>
         </div>
@@ -510,7 +525,7 @@ export default function ProdukTab() {
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-green-600" />
+              <Package className="h-5 w-5 text-blue-600" />
               {editingProduk ? "Edit Produk" : "Tambah Produk"}
             </DialogTitle>
           </DialogHeader>
@@ -556,6 +571,44 @@ export default function ProdukTab() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="gambar">Gambar Produk</Label>
+
+              {/* Preview gambar lama (saat edit) */}
+              {editingProduk && existingImages.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Gambar saat ini:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {existingImages.map((url, i) => (
+                      <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border">
+                        <Image 
+                          src={url} 
+                          alt={`existing-${i}`} 
+                          fill 
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview gambar baru yang dipilih */}
+                {imagePreviews.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Gambar baru yang dipilih:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {imagePreviews.map((url, i) => (
+                        <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border">
+                          <Image 
+                            src={url} 
+                            alt={`preview-${i}`} 
+                            fill 
+                            className="object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <input 
@@ -563,6 +616,7 @@ export default function ProdukTab() {
                     ref={filesRef} 
                     type="file" 
                     accept="image/png,image/jpeg,image/jpg" 
+                    onChange={handleFileChange}
                     multiple 
                     className="hidden"
                   />
@@ -586,13 +640,13 @@ export default function ProdukTab() {
                 type="button" 
                 variant="outline"
                 onClick={() => setShowAddModal(false)}
-                className="bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-800 dark:text-white"
+                className="bg-[#E2DCD8] border-black text-gray-800"
               >
                 Batal
               </Button>
               <Button 
                 type="submit"
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-[#A65C37] hover:bg-[#7f4629] text-white"
               >
                 {editingProduk ? "Perbarui Produk" : "Tambah Produk"}
               </Button>
@@ -622,19 +676,19 @@ export default function ProdukTab() {
           <div className="space-y-6">
             {/* Existing Variants */}
             <div>
-              <h4 className="font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+              <h4 className="font-medium mb-4 flex items-center gap-2 text-gray-900">
                 <Tag className="h-4 w-4" />
                 Daftar Varian ({varianList.length})
               </h4>
               {varianList.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
                   <Tag className="h-8 w-8 mx-auto text-gray-300 mb-2" />
                   <p className="text-gray-500 dark:text-gray-400">Belum ada varian untuk produk ini</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {varianList.map((v) => (
-                    <div key={v.id_varian} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div key={v.id_varian} className="bg-gray-50  p-4 rounded-lg border border-gray-300">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h5 className="font-medium text-gray-900 dark:text-white">{v.nama_varian}</h5>
@@ -723,7 +777,7 @@ export default function ProdukTab() {
                   <Button 
                     type="submit" 
                     disabled={!variantForm.nama.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-[#A65C37] text-white hover:bg-[#7f4629]"
                   >
                     {editingVarian ? "Perbarui Varian" : "Tambah Varian"}
                   </Button>
@@ -731,15 +785,6 @@ export default function ProdukTab() {
               </form>
             </div>
           </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowVariantModal(false)}
-              className="bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-800 dark:text-white"
-            >
-              Tutup
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

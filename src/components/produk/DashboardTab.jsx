@@ -22,6 +22,17 @@ const STATUS_OPTIONS = [
   { value: "selesai", label: "Selesai" },
 ];
 
+function formatUTCtoDateOnly(utcDateString) {
+  if (!utcDateString) return "";
+  const iso = utcDateString.replace(" ", "T").split(".")[0] + "Z";
+  return new Date(iso).toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+}
+
 export default function DashboardTab({ onViewAllOrders }) {
   const [summary, setSummary] = useState({
     totalOrders: 0,
@@ -87,7 +98,7 @@ export default function DashboardTab({ onViewAllOrders }) {
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Pesanan Terbaru</h2>
-          <Button variant="outline" size="sm" onClick={onViewAllOrders}>
+          <Button className="bg-[#A65C37] hover:bg-[#7f4629]" size="sm" onClick={onViewAllOrders}>
             Lihat Semua
           </Button>
         </div>
@@ -101,13 +112,13 @@ export default function DashboardTab({ onViewAllOrders }) {
         ) : (
         <div className="border rounded-lg overflow-hidden">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-[#a96543] text-white">
               <tr>
-                <th className="p-4 font-bold text-gray-700">Pesanan</th>
-                <th className="p-4 font-bold text-gray-700">Pembeli</th>
-                <th className="p-4 font-bold text-gray-700">Total</th>
-                <th className="p-4 font-bold text-gray-700">Tanggal</th>
-                <th className="p-4 font-bold text-gray-700">Status</th>
+                <th className="p-4 font-bold">Pesanan</th>
+                <th className="p-4 font-bold">Pembeli</th>
+                <th className="p-4 font-bold">Total</th>
+                <th className="p-4 font-bold">Tanggal</th>
+                <th className="p-4 font-bold">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -128,7 +139,7 @@ export default function DashboardTab({ onViewAllOrders }) {
                     </td>
                     <td>
                       <div className="p-4">
-                        {new Date(order.dibuat_pada).toLocaleString("id-ID")}
+                        {formatUTCtoDateOnly(order.dibuat_pada)}
                       </div>
                     </td>
                     <td className="p-4">
