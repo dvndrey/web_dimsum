@@ -128,24 +128,22 @@ export default function PesananTab() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-3">
-          <div>
-            <p className="text-sm text-gray-500 ml-1">Total Pesanan: {orders.length} pesanan</p>
-          </div>
-        </div>
-        {/* Header dengan Filter & Pencarian */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          {/* Filter & Pencarian */}
+      <div className="space-y-4 sm:flex sm:justify-between sm:items-center sm:space-y-0 mb-4">
+        {/* Total Pesanan */}
+        <p className="text-sm text-gray-500">Total Pesanan: {orders.length} pesanan</p>
+
+        {/* Filter & Pencarian + Refresh */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* Pencarian & Filter */}
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             {/* 🔍 Pencarian */}
-            <div className="relative">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Cari pesanan (ID atau nama)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full sm:w-64 bg-gray-50 border-gray-200 focus:bg-white"
+                className="pl-10 w-full bg-gray-50 border-gray-200 focus:bg-white"
               />
             </div>
 
@@ -171,7 +169,7 @@ export default function PesananTab() {
             size="sm"
             onClick={loadOrders}
             disabled={loading}
-            className="flex items-center gap-2 w-full sm:w-auto bg-[#A65C37] text-white hover:bg-[#7f4629] hover:text-white"
+            className="flex items-center gap-2 w-full sm:w-auto bg-[#A65C37] text-white hover:bg-[#7f4629]"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -179,7 +177,7 @@ export default function PesananTab() {
         </div>
       </div>
 
-      {/* Orders Table */}
+      {/* Orders Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="flex items-center space-x-2 text-gray-500">
@@ -193,78 +191,136 @@ export default function PesananTab() {
           <p>Belum ada pesanan</p>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-[#a96543] text-white">
-              <tr>
-                <th className="p-4 font-bold">Pesanan</th>
-                <th className="p-4 font-bold">Pembeli</th>
-                <th className="p-4 font-bold">Total</th>
-                <th className="p-4 font-bold">Status</th>
-                <th className="p-4 font-bold">Tanggal</th>
-                <th className="p-4 font-bold">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.map((order) => {
-                const StatusIcon = STATUS_CONFIG[order.status_pesanan]?.icon || Clock;
-                return (
-                  <tr key={order.id_pesanan} className="border-t text-center bg-white hover:bg-gray-50">
-                    <td className="p-4">
-                      <div className="text-sm text-gray-900">
-                        #{order.id_pesanan.substring(0, 8).toUpperCase()}
+        <>
+          {/* Desktop Table */}
+          <div className="hidden md:block border rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-[#a96543] text-white">
+                <tr>
+                  <th className="p-4 font-bold">Pesanan</th>
+                  <th className="p-4 font-bold">Pembeli</th>
+                  <th className="p-4 font-bold">Total</th>
+                  <th className="p-4 font-bold">Status</th>
+                  <th className="p-4 font-bold">Tanggal</th>
+                  <th className="p-4 font-bold">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => {
+                  const StatusIcon = STATUS_CONFIG[order.status_pesanan]?.icon || Clock;
+                  return (
+                    <tr key={order.id_pesanan} className="border-t text-center bg-white hover:bg-gray-50">
+                      <td className="p-4">
+                        <div className="text-sm text-gray-900">
+                          #{order.id_pesanan.substring(0, 8).toUpperCase()}
+                        </div>
+                      </td>
+                      <td className="p-4">{order.pembeli.nama_pembeli}</td>
+                      <td className="p-4">
+                        Rp{Number(order.total_harga).toLocaleString("id-ID")}
+                      </td>
+                      <td className="p-4">
+                        <Badge className={STATUS_CONFIG[order.status_pesanan]?.color || "bg-gray-100 text-gray-800"}>
+                          <StatusIcon className="h-3 w-3 mr-1 inline" />
+                          {STATUS_CONFIG[order.status_pesanan]?.label || order.status_pesanan}
+                        </Badge>
+                      </td>
+                      <td className="p-4">{formatUTCtoDateOnly(order.dibuat_pada)}</td>
+                      <td className="p-4 flex justify-center items-center space-x-2">
+                        <Select
+                          value={order.status_pesanan}
+                          onValueChange={(value) => handleStatusChange(order.id_pesanan, value)}
+                          disabled={updatingId === order.id_pesanan}
+                        >
+                          <SelectTrigger className="w-[140px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openDetail(order)}
+                          className="text-gray-700 hover:bg-gray-100"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Detail
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {filteredOrders.map((order) => {
+              const StatusIcon = STATUS_CONFIG[order.status_pesanan]?.icon || Clock;
+              return (
+                <div
+                  key={order.id_pesanan}
+                  className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-medium text-gray-900">
+                        #{order.id_pesanan.substring(0, 8).toUpperCase()} - {formatUTCtoDateOnly(order.dibuat_pada)}
                       </div>
-                    </td>
-                    <td className="p-4">
-                      <div>{order.pembeli.nama_pembeli}</div>
-                    </td>
-                    <td className="p-4">
-                      Rp{Number(order.total_harga).toLocaleString("id-ID")}
-                    </td>
-                    <td className="p-4">
-                      <Badge className={STATUS_CONFIG[order.status_pesanan]?.color || "bg-gray-100 text-gray-800"}>
-                        <StatusIcon className="h-3 w-3 mr-1 inline" />
-                        {STATUS_CONFIG[order.status_pesanan]?.label || order.status_pesanan}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="p-4">
-                        {formatUTCtoDateOnly(order.dibuat_pada)}
+                      <div className="text-sm text-gray-600 mt-1">
+                        Pembeli: {order.pembeli.nama_pembeli}
                       </div>
-                    </td>
-                    <td className="p-4 flex justify-center items-center space-x-2">
-                      <Select
-                        value={order.status_pesanan}
-                        onValueChange={(value) => handleStatusChange(order.id_pesanan, value)}
-                        disabled={updatingId === order.id_pesanan}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STATUS_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openDetail(order)}
-                        className="text-gray-700 hover:bg-gray-100"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Detail
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                    <Badge className={STATUS_CONFIG[order.status_pesanan]?.color || "bg-gray-100 text-gray-800"}>
+                      <StatusIcon className="h-3 w-3 mr-1 inline" />
+                      {STATUS_CONFIG[order.status_pesanan]?.label}
+                    </Badge>
+                  </div>
+
+                  <div className="text-sm text-gray-600">
+                    <span>Total:</span>{" "}
+                    Rp{Number(order.total_harga).toLocaleString("id-ID")}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Select
+                      value={order.status_pesanan}
+                      onValueChange={(value) => handleStatusChange(order.id_pesanan, value)}
+                      disabled={updatingId === order.id_pesanan}
+                      className="flex-1"
+                    >
+                      <SelectTrigger className="w-full text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openDetail(order)}
+                      className="text-gray-700 hover:bg-gray-100"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Detail Modal */}

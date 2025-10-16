@@ -14,13 +14,6 @@ const STATUS_CONFIG = {
   selesai: { label: "Selesai", color: "bg-green-100 text-green-800", icon: CheckCircle },
 };
 
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Menunggu" },
-  { value: "diproses", label: "Diproses" },
-  { value: "dikirim", label: "Dikirim" },
-  { value: "selesai", label: "Selesai" },
-];
-
 function formatUTCtoDateOnly(utcDateString) {
   if (!utcDateString) return "";
   const iso = utcDateString.replace(" ", "T").split(".")[0] + "Z";
@@ -59,8 +52,7 @@ export default function DashboardTab({ onViewAllOrders }) {
   return (
     <div>
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-        {/* Total Pesanan */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Pesanan</CardTitle>
@@ -70,13 +62,10 @@ export default function DashboardTab({ onViewAllOrders }) {
             <div className="text-2xl font-bold">
               {loading ? "..." : summary.totalOrders}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Semua pesanan sejak awal
-            </p>
+            <p className="text-xs text-gray-500 mt-1">Semua pesanan sejak awal</p>
           </CardContent>
         </Card>
 
-        {/* Total Pemasukan */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Pemasukan</CardTitle>
@@ -84,11 +73,11 @@ export default function DashboardTab({ onViewAllOrders }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? "..." : `Rp${Number(summary.totalRevenue).toLocaleString("id-ID")}`}
+              {loading
+                ? "..."
+                : `Rp${Number(summary.totalRevenue).toLocaleString("id-ID")}`}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Dari semua pesanan yang masuk
-            </p>
+            <p className="text-xs text-gray-500 mt-1">Dari semua pesanan yang masuk</p>
           </CardContent>
         </Card>
       </div>
@@ -97,7 +86,11 @@ export default function DashboardTab({ onViewAllOrders }) {
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Pesanan Terbaru</h2>
-          <Button className="bg-[#A65C37] hover:bg-[#7f4629]" size="sm" onClick={onViewAllOrders}>
+          <Button
+            className="bg-[#A65C37] hover:bg-[#7f4629]"
+            size="sm"
+            onClick={onViewAllOrders}
+          >
             Lihat Semua
           </Button>
         </div>
@@ -105,54 +98,93 @@ export default function DashboardTab({ onViewAllOrders }) {
         {loading ? (
           <div className="text-center py-8 text-gray-500">Memuat...</div>
         ) : summary.recentOrders.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            Belum ada pesanan
-          </div>
+          <div className="text-center py-8 text-gray-500">Belum ada pesanan</div>
         ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-[#a96543] text-white">
-              <tr>
-                <th className="p-4 font-bold">Pesanan</th>
-                <th className="p-4 font-bold">Pembeli</th>
-                <th className="p-4 font-bold">Total</th>
-                <th className="p-4 font-bold">Tanggal</th>
-                <th className="p-4 font-bold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-[#a96543] text-white">
+                  <tr>
+                    <th className="p-4 font-bold">Pesanan</th>
+                    <th className="p-4 font-bold">Pembeli</th>
+                    <th className="p-4 font-bold">Total</th>
+                    <th className="p-4 font-bold">Tanggal</th>
+                    <th className="p-4 font-bold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.recentOrders.map((order) => {
+                    const StatusIcon = STATUS_CONFIG[order.status_pesanan]?.icon || Clock;
+                    return (
+                      <tr
+                        key={order.id_pesanan}
+                        className="border-t text-center bg-white hover:bg-gray-50"
+                      >
+                        <td className="p-4">
+                          <div className="text-sm text-gray-900">
+                            #{order.id_pesanan.substring(0, 8).toUpperCase()}
+                          </div>
+                        </td>
+                        <td className="p-4">{order.pembeli.nama_pembeli}</td>
+                        <td className="p-4">
+                          Rp{Number(order.total_harga).toLocaleString("id-ID")}
+                        </td>
+                        <td className="p-4">
+                          {formatUTCtoDateOnly(order.dibuat_pada)}
+                        </td>
+                        <td className="p-4">
+                          <Badge
+                            className={
+                              STATUS_CONFIG[order.status_pesanan]?.color ||
+                              "bg-gray-100 text-gray-800"
+                            }
+                          >
+                            <StatusIcon className="h-3 w-3 mr-1 inline" />
+                            {STATUS_CONFIG[order.status_pesanan]?.label || order.status_pesanan}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
               {summary.recentOrders.map((order) => {
                 const StatusIcon = STATUS_CONFIG[order.status_pesanan]?.icon || Clock;
                 return (
-                  <tr key={order.id_pesanan} className="border-t text-center bg-white hover:bg-gray-50">
-                    <td className="p-4">
-                      <div className="text-sm text-gray-900">
-                        #{order.id_pesanan.substring(0, 8).toUpperCase()}
+                  <Card key={order.id_pesanan} className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-sm font-medium">
+                          #{order.id_pesanan.substring(0, 8).toUpperCase()} - {formatUTCtoDateOnly(order.dibuat_pada)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Pembeli: {order.pembeli.nama_pembeli}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          <span>Total:</span>{" "}
+                          Rp{Number(order.total_harga).toLocaleString("id-ID")}
+                        </div>
                       </div>
-                    </td>
-                    <td className="p-4">
-                      <div>{order.pembeli.nama_pembeli}</div>
-                    </td>
-                    <td className="p-4">
-                      Rp{Number(order.total_harga).toLocaleString("id-ID")}
-                    </td>
-                    <td>
-                      <div className="p-4">
-                        {formatUTCtoDateOnly(order.dibuat_pada)}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <Badge className={STATUS_CONFIG[order.status_pesanan]?.color || "bg-gray-100 text-gray-800"}>
+                      <Badge
+                        className={
+                          STATUS_CONFIG[order.status_pesanan]?.color ||
+                          "bg-gray-100 text-gray-800"
+                        }
+                      >
                         <StatusIcon className="h-3 w-3 mr-1 inline" />
                         {STATUS_CONFIG[order.status_pesanan]?.label || order.status_pesanan}
                       </Badge>
-                    </td>
-                  </tr>
+                    </div>
+                  </Card>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </>
         )}
       </div>
     </div>

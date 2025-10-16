@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+[data-sidebar="sidebar"] {
+  background: linear-gradient(to bottom, #F5F2E9, #C69C6D) !important;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

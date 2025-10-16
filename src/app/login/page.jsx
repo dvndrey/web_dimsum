@@ -167,55 +167,122 @@ const handleForgotPassword = async (e) => {
       {/* Mobile: full center */}
       <div className="md:hidden min-h-screen w-full bg-white flex flex-col justify-center items-center p-4">
         <div className="w-full max-w-md space-y-1 px-6">
-          <div className="flex justify-center">
-            <Image src="/logo_client.png" alt="Logo" width={80} height={80} className="h-20 w-auto" />
-          </div>
-          <h2 className="text-2xl font-bold text-center text-gray-800">Admin Login Panel</h2>
-          <p className="text-sm text-center text-gray-500">Please log in to continue</p>
+          {!showForgot ? (
+            <>
+              <div className="flex justify-center">
+                <Image src="/logo_client.png" alt="Logo" width={80} height={80} className="h-20 w-auto" />
+              </div>
+              <h2 className="text-2xl font-bold text-center text-gray-800">Admin Login Panel</h2>
+              <p className="text-sm text-center text-gray-500">Please log in to continue</p>
 
-          {error && (
-            <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">{error}</div>
+              {error && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">{error}</div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="email" className="block text-sm font-bold text-gray-700 mb-1">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-gray-50 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#d4a373] focus:border-transparent text-gray-900"
+                    placeholder="your.email@example.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="password" className="block text-sm font-bold text-gray-700 mb-1">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-gray-50 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#d4a373] focus:border-transparent text-gray-900"
+                    placeholder="****************"
+                    required
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full bg-[#a66c4a] hover:bg-[#8c5a3c] text-white font-medium py-2 rounded-md transition"
+                  disabled={loading}
+                >
+                  {loading ? "Memproses..." : "Login"}
+                </Button>
+
+                <div className="text-center mt-4 text-sm font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgot(true)}
+                    className="text-[#F97D3F] hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                  <span className="text-gray-400 mx-2">|</span>
+                  <Link href="/" className="text-[#F97D3F] hover:underline">Back to Home</Link>
+                </div>
+              </form>
+            </>
+          ) : (
+            /* Forgot Password Form - Mobile */
+            <div className="w-full">
+              <div className="flex justify-center mb-4">
+                <Image src="/logo_client.png" alt="Logo" width={80} height={80} className="h-20 w-auto" />
+              </div>
+              <h2 className="text-2xl font-bold text-center text-gray-800">Reset Password</h2>
+              <p className="text-sm text-center text-gray-500 mt-1">
+                Masukkan email Anda, kami akan kirim link untuk reset password.
+              </p>
+
+              {error && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm mt-3">{error}</div>
+              )}
+
+              {forgotSent && (
+                <div className="p-3 bg-green-50 text-green-600 rounded-md text-sm mt-3">
+                  Link reset password telah dikirim ke email Anda.
+                </div>
+              )}
+
+              <form onSubmit={handleForgotPassword} className="space-y-4 mt-4">
+                <div>
+                  <Label htmlFor="forgotEmail" className="block text-sm font-bold text-gray-700 mb-1">
+                    Email
+                  </Label>
+                  <Input
+                    id="forgotEmail"
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="your.email@example.com"
+                    required
+                    className="bg-gray-50 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#d4a373] text-gray-900"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full bg-[#a66c4a] hover:bg-[#8c5a3c] text-white"
+                  disabled={loading}
+                >
+                  {loading ? "Mengirim..." : "Kirim Link Reset"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgot(false);
+                    setForgotEmail("");
+                    setError("");
+                    setForgotSent(false);
+                  }}
+                  className="w-full text-sm text-gray-600 hover:text-gray-800 mt-2"
+                >
+                  ← Kembali ke login
+                </button>
+              </form>
+            </div>
           )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="email" className="block text-sm font-bold text-gray-700 mb-1">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-gray-50 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#d4a373] focus:border-transparent text-gray-900"
-                placeholder="your.email@example.com"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="password" className="block text-sm font-bold text-gray-700 mb-1">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-gray-50 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#d4a373] focus:border-transparent text-gray-900"
-                placeholder="****************"
-                required
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-[#a66c4a] hover:bg-[#8c5a3c] text-white font-medium py-2 rounded-md transition"
-              disabled={loading}
-            >
-              {loading ? "Memproses..." : "Login"}
-            </Button>
-          </form>
-
-          <div className="text-center mt-4 text-sm font-bold">
-            <Link href="#" className="text-[#F97D3F] hover:underline mr-4">Forgot Password?</Link>
-            <span className="text-gray-400">|</span>
-            <Link href="/" className="text-[#F97D3F] hover:underline ml-4">Back to Home</Link>
-          </div>
         </div>
       </div>
     </>

@@ -403,65 +403,91 @@ export default function ProdukTab() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
-        <div className="flex items-center space-x-3">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Jumlah Produk: {produk.length}</p>
+      <div className="space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between">
+        {/* Mobile: Jumlah produk + view toggle di satu baris */}
+        <div className="flex justify-between items-center lg:hidden">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Jumlah Produk: {produk.length}
+          </p>
+          <div className="flex items-center gap-2 rounded">
+            <Button
+              size="sm"
+              className={`${viewMode === "grid" ? "h-8 w-8 p-0 bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
+              onClick={() => setViewMode("grid")}
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              className={`${viewMode === "list" ? "h-8 w-8 p-0 bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full lg:w-auto">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-3 flex-1">
-              {/* Search */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Cari produk..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 focus:bg-white focus:dark:bg-gray-800 transition-colors"
-                />
-              </div>
-              {/* Category Filter */}
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full sm:w-48 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white">
-                  <SelectValue placeholder="Semua Kategori" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                    <SelectItem value="all">Semua Kategori</SelectItem>
-                    {categories.map(cat => (
-                    <SelectItem key={cat.id_kategori} value={String(cat.id_kategori)}>
-                        {cat.nama_kategori}
-                    </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+        {/* Desktop: Jumlah produk saja (view toggle pindah ke kanan) */}
+        <div className="hidden lg:block">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Jumlah Produk: {produk.length}
+          </p>
+        </div>
+
+        {/* Kontrol: Search, Filter, Tambah, View Toggle (desktop only) */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          {/* Search & Category Filter */}
+          <div className="flex flex-col sm:flex-row gap-3 flex-1">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Cari produk..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 focus:bg-white focus:dark:bg-gray-800 transition-colors"
+              />
             </div>
-          <Button 
-            onClick={openAdd} 
-            className="flex items-center gap-2 bg-[#A65C37] hover:bg-[#7f4629] text-white"
-          >
-            <Plus className="h-4 w-4" />
-            Tambah Produk
-          </Button>
-            {/* View Toggle */}
-            <div className="flex items-center gap-1 p-1 rounded">
-                <Button
-                    size="sm"
-                    className={`${viewMode === "grid" ? "bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
-                    onClick={() => setViewMode("grid")}
-                >
-                    <Grid3X3 className="h-4 w-4" />
-                </Button>
-                <Button
-                    size="sm"
-                    className={`${viewMode === "list" ? "bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
-                    onClick={() => setViewMode("list")}
-                >
-                    <List className="h-4 w-4" />
-                </Button>
+
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full sm:w-48 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white">
+                <SelectValue placeholder="Semua Kategori" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                <SelectItem value="all">Semua Kategori</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id_kategori} value={String(cat.id_kategori)}>
+                    {cat.nama_kategori}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={openAdd}
+              className="flex items-center gap-2 bg-[#A65C37] hover:bg-[#7f4629] text-white whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Produk
+            </Button>
+
+            {/* View Toggle - Desktop Only */}
+            <div className="hidden lg:flex items-center gap-2 rounded">
+              <Button
+                size="sm"
+                className={`${viewMode === "grid" ? "h-8 w-8 p-0 bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
+                onClick={() => setViewMode("grid")}
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                className={`${viewMode === "list" ? "h-8 w-8 p-0 bg-[#A65C37] hover:bg-[#A65C37]" : "bg-white text-black hover:bg-gray-100"}`}
+                onClick={() => setViewMode("list")}
+              >
+                <List className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>

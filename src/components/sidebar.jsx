@@ -22,7 +22,7 @@ const items = [
 
 export function AppSidebar({ activePage, setActivePage }) {
   return (
-    <Sidebar className="text-gray-800"
+    <Sidebar className="text-gray-800 bg-gradient-to-b from-[#F5F2E9] to-[#C69C6D]"
       style={
         {
           "--sidebar": "oklch(1 0 0 / 0)", 
