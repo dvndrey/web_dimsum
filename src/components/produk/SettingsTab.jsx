@@ -94,18 +94,7 @@ export default function SettingsTab() {
   }
   
   return (
-    <div className="p-6 space-y-6 bg-transparent">
-      {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
-          <Settings className="h-5 w-5 text-purple-600" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 dark:text-white">Pengaturan Toko</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Kelola informasi dasar toko Anda</p>
-        </div>
-      </div>
-      
+    <div className="space-y-6">
       <div className="max-w-2xl">
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardHeader>
@@ -114,7 +103,7 @@ export default function SettingsTab() {
               Profil Toko
             </CardTitle>
             <CardDescription className="text-gray-500 dark:text-gray-400">
-              Informasi ini akan ditampilkan pada halaman toko dan invoice
+              Informasi ini akan ditampilkan pada beberapa halaman website
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -134,9 +123,6 @@ export default function SettingsTab() {
                   className="transition-colors focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                   required
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Nama ini akan muncul di header dan invoice
-                </p>
               </div>
               
               <Separator className="my-4" />
@@ -194,20 +180,15 @@ export default function SettingsTab() {
                     placeholder="Masukkan alamat lengkap toko..."
                     className="transition-colors focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Alamat ini akan digunakan untuk pengiriman dan kontak pelanggan
-                  </p>
                 </div>
               </div>
-              
-              <Separator className="my-4" />
               
               {/* Submit Button */}
               <div className="flex justify-end pt-4">
                 <Button 
                   type="submit" 
                   disabled={saving}
-                  className="flex items-center gap-2 min-w-[140px] bg-blue-600 hover:bg-blue-700 text-white"
+                  className="flex items-center gap-2 min-w-[140px] bg-[#A65C37] hover:bg-[#7f4629] text-white"
                 >
                   {saving ? (
                     <>

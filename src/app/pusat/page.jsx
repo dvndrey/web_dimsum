@@ -31,14 +31,12 @@ export default function AdminPage() {
     setActivePage("Pesanan");
   };
 
-  // Redirect ke /login jika tidak ada user dan loading sudah selesai
   useEffect(() => {
     if (!user && !loading) {
       router.push("/login");
     }
   }, [user, loading, router]);
 
-  // Jika sedang memuat, tampilkan loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -50,12 +48,10 @@ export default function AdminPage() {
     );
   }
 
-  // Jika tidak ada user, jangan render apa-apa → akan diarahkan ke /login oleh useEffect
   if (!user) {
     return null;
   }
 
-  // Fungsi untuk mendapatkan judul halaman aktif
   const getPageTitle = () => {
     const titles = {
       "Dashboard": "Dashboard Admin",

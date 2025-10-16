@@ -7,6 +7,8 @@ import { useAuth } from "../../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "../../../lib/supabase";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,6 +17,31 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+
+const handleForgotPassword = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/auth/reset-password`, 
+    });
+
+    if (error) throw error;
+
+    setForgotSent(true);
+    toast.success("Link reset password telah dikirim ke email Anda.");
+    setForgotEmail("");
+  } catch (err) {
+    setError(err.message || "Gagal mengirim email reset.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,6 +76,7 @@ export default function LoginPage() {
 
         {/* Right */}
         <div className="w-1/2 flex flex-col justify-center items-center p-12 bg-white">
+        {!showForgot ? (
           <div className="w-full max-w-md space-y-1">
             <div className="flex justify-center">
               <Image src="/logo_client.png" alt="Logo" width={80} height={80} className="h-20 w-auto" />
@@ -95,11 +123,44 @@ export default function LoginPage() {
             </form>
 
             <div className="text-center mt-4 text-sm font-bold">
-              <Link href="#" className="text-[#F97D3F] hover:underline mr-4">Forgot Password?</Link>
+              <Link href="#" onClick={() => setShowForgot(true)} className="text-[#F97D3F] hover:underline mr-4">Forgot Password?</Link>
               <span className="text-gray-400">|</span>
               <Link href="/" className="text-[#F97D3F] hover:underline ml-4">Back to Home</Link>
             </div>
           </div>
+        ) : (
+          <form onSubmit={handleForgotPassword} className="mt-6 space-y-4 flex flex-col items-center">
+            <p className="text-sm text-gray-600">
+              Masukkan email Anda, kami akan kirim link untuk reset password.
+            </p>
+            <Input
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              placeholder="your.email@example.com"
+              required
+              className="bg-gray-50 border border-gray-300 rounded-md px-4 focus:outline-none focus:ring-2 focus:ring-[#d4a373]"
+            />
+            <Button
+              type="submit"
+              className="w-full bg-[#a66c4a] hover:bg-[#8c5a3c] text-white"
+              disabled={loading}
+            >
+              {loading ? "Mengirim..." : "Kirim Link Reset"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgot(false);
+                setForgotEmail("");
+                setError("");
+              }}
+              className="text-sm text-gray-500 hover:underline"
+            >
+              ← Kembali ke login
+            </button>
+          </form>
+        )}
         </div>
       </div>
 

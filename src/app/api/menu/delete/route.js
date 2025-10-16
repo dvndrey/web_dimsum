@@ -4,7 +4,6 @@ export async function POST(req) {
   try {
     const { id } = await req.json();
 
-    // ambil menu dulu
     const { data: menu, error: getError } = await supabaseAdmin
       .from('produk')
       .select('url_gambar')

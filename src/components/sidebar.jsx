@@ -25,7 +25,7 @@ export function AppSidebar({ activePage, setActivePage }) {
     <Sidebar className="text-gray-800"
       style={
         {
-          "--sidebar": "oklch(1 0 0 / 0)", // transparan dalam format oklch
+          "--sidebar": "oklch(1 0 0 / 0)", 
           background: "linear-gradient(to bottom, #F5F2E9, #C69C6D)",
         }
       }

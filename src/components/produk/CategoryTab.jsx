@@ -29,7 +29,6 @@ export default function CategoryTab() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  // modal state
   const [open, setOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [namaKategori, setNamaKategori] = useState("");

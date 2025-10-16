@@ -4,7 +4,6 @@ import { getOrders, updateOrderStatus } from "../../../services/orderService";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 
-// Impor komponen shadcn/ui SATU PER SATU (sesuai contoh yang berfungsi)
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -80,10 +79,8 @@ export default function PesananTab() {
   const [selectedStatus, setSelectedStatus] = useState("all");
 
   const filteredOrders = orders.filter((order) => {
-    // Filter berdasarkan status
     const matchesStatus = selectedStatus === "all" || order.status_pesanan === selectedStatus;
 
-    // Filter berdasarkan pencarian (ID pesanan atau nama pembeli)
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
       (order.id_pesanan?.toLowerCase() || "").includes(searchLower) ||

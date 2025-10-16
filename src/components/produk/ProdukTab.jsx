@@ -69,19 +69,19 @@ export default function ProdukTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [viewMode, setViewMode] = useState("grid");
-  // modal state
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduk, setEditingProduk] = useState(null);
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedProduk, setSelectedProduk] = useState(null);
-  // new state for variant editing
+ 
   const [editingVarian, setEditingVarian] = useState(null);
-  // forms refs/state
+
   const namaRef = useRef();
   const descRef = useRef();
   const categoryRef = useRef();
   const filesRef = useRef();
-  // variant form
+
   const [varianList, setVarianList] = useState([]);
   const [variantForm, setVariantForm] = useState({
     nama: "",
@@ -89,8 +89,8 @@ export default function ProdukTab() {
     stok: ""
   });
 
-  const [imagePreviews, setImagePreviews] = useState([]); // untuk gambar baru
-  const [existingImages, setExistingImages] = useState([]); // untuk gambar lama saat edit
+  const [imagePreviews, setImagePreviews] = useState([]); 
+  const [existingImages, setExistingImages] = useState([]);
 
   useEffect(() => {
     loadAll();
@@ -187,7 +187,7 @@ export default function ProdukTab() {
   async function openVarian(p) {
     setSelectedProduk(p);
     setShowVariantModal(true);
-    setEditingVarian(null); // Reset saat membuka modal varian
+    setEditingVarian(null);
     setVariantForm({ nama: "", harga: "", stok: "" });
     try {
       const v = await getVarianByProduk(p.id_produk);
@@ -198,7 +198,6 @@ export default function ProdukTab() {
     }
   }
   
-  // New function to handle variant delete
   async function handleDeleteVarian(id_varian) {
     try {
       await deleteVarian(id_varian);
@@ -212,7 +211,6 @@ export default function ProdukTab() {
     }
   }
   
-  // Updated function to handle both add and update
   async function submitVariant(e) {
     e.preventDefault();
     const { nama, harga, stok } = variantForm;
@@ -226,7 +224,7 @@ export default function ProdukTab() {
         await addVarian(selectedProduk.id_produk, nama, Number(harga || 0), Number(stok || 0));
         toast.success("Varian berhasil ditambahkan");
       }
-      // Reload varian list
+
       const v = await getVarianByProduk(selectedProduk.id_produk);
       setVarianList(v || []);
       setVariantForm({ nama: "", harga: "", stok: "" });
@@ -237,7 +235,6 @@ export default function ProdukTab() {
     }
   }
   
-  // Filter products
   const filteredProduk = produk.filter(p => {
     const matchesSearch =
         p.nama_produk.toLowerCase().includes(searchTerm.toLowerCase()) ||

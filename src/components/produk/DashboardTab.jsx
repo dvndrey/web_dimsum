@@ -1,4 +1,3 @@
-// src/components/produk/DashboardTab.jsx
 "use client";
 import { useEffect, useState } from "react";
 import { getDashboardSummary } from "../../../services/orderService";

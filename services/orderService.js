@@ -1,4 +1,3 @@
-// services/orderService.js
 import { supabase } from "../lib/supabase";
 
 /**
