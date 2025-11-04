@@ -41,10 +41,10 @@ export default function Home() {
              Kami percaya rasa terbaik lahir dari sentuhan tangan dan ketulusan hati.
            </p>
            <div className="flex flex-col sm:flex-row gap-4">
-             <button className="bg-blue-600 hover:bg-orange-700 text-white font-medium py-3 px-6 rounded-full transition">
+             <button className="bg-[#A65C37] hover:bg-[#d36e3b] hover:scale-103 text-white font-medium py-3 px-6 rounded-full transition cursor-pointer">
                Order Sekarang
              </button>
-             <button className="bg-white text-gray-800 hover:bg-gray-300 font-medium py-3 px-6 rounded-full transition">
+             <button className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-103 font-medium py-3 px-6 rounded-full transition cursor-pointer">
                Lihat Menu
              </button>
            </div>
@@ -54,11 +54,12 @@ export default function Home() {
        {/* Kenapa Memilih Kami? Section */}
        <section className="py-16 bg-white px-4">
          <div className="max-w-6xl mx-auto">
-           <h2 className="text-4xl md:text-5xl font-bold text-center mb-12">Kenapa Memilih Kami?</h2>
+           <h2 className="text-4xl md:text-5xl font-medium text-center mb-12">Kenapa Memilih Kami?</h2>
  
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
              {/* Card 1 - Bayar Saat Pesanan Tiba */}
-             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-xl hover:shadow-orange-100 transition flex flex-col items-center text-center border border-gray-200">
+             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-2xl hover:shadow-[#ffc3a5] transition flex flex-col items-center text-center border border-gray-200">
                <div className="w-16 h-16 mb-4 flex items-center justify-center">
                  <img
                    src="/Icons/MoneyIcon.png"
@@ -73,7 +74,7 @@ export default function Home() {
              </div>
  
              {/* Card 2 - Kepuasan Pelanggan Utama Kami */}
-             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-xl hover:shadow-orange-100 transition flex flex-col items-center text-center border border-gray-200">
+             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-2xl hover:shadow-[#ffc3a5] transition flex flex-col items-center text-center border border-gray-200">
                <div className="w-16 h-16 mb-4 flex items-center justify-center">
                  <img
                    src="/Icons/PercentIcon.png"
@@ -88,7 +89,7 @@ export default function Home() {
              </div>
  
              {/* Card 3 - Resep Asli Rumahan */}
-             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-xl hover:shadow-orange-100 transition flex flex-col items-center text-center border border-gray-200">
+             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-2xl hover:shadow-[#ffc3a5] transition flex flex-col items-center text-center border border-gray-200">
                <div className="w-16 h-16 mb-4 flex items-center justify-center">
                  <img
                    src="/Icons/FindIcon.png"
@@ -103,7 +104,7 @@ export default function Home() {
              </div>
  
              {/* Card 4 - Kualitas Terjamin, Rasa Konsisten */}
-             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-xl hover:shadow-orange-100 transition flex flex-col items-center text-center border border-gray-200">
+             <div className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-2xl hover:shadow-[#ffc3a5] transition flex flex-col items-center text-center border border-gray-200">
                <div className="w-16 h-16 mb-4 flex items-center justify-center">
                  <img
                    src="/Icons/QualityIcon.png"
@@ -123,7 +124,7 @@ export default function Home() {
        {/* Special Menu Section */}
        <section className="py-10 bg-white px-4">
          <div className="max-w-6xl mx-auto">
-           <h2 className="text-4xl md:text-4xl font-medium text-center  text-gray-800 mb-8">Nikmati jugaberbagai pilihan menu spesial kami!</h2>
+           <h2 className="text-4xl md:text-4xl font-medium text-center  text-gray-800 mb-8">Nikmati juga berbagai pilihan menu spesial kami!</h2>
  
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
  
@@ -188,7 +189,7 @@ export default function Home() {
                Dimsum buatan tangan dengan rasa rumahan yang autentik,<br />
                dibuat dengan sepenuh hati untuk Anda.
              </p>
-             <button className="bg-yellow-700 hover:bg-yellow-800 text-white font-medium py-2 px-6 rounded-full transition">
+             <button className="bg-[#A65C37] hover:bg-[#d36e3b] cursor-pointer text-white font-medium py-2 px-6 rounded-full transition">
                View Full Menu
              </button>
            </div>
@@ -207,7 +208,7 @@ export default function Home() {
                href="https://maps.app.goo.gl/Nc3r3DhUe11powo16"
                target="_blank"
                rel="noopener noreferrer"
-               className="block border-4 rounded-xl border-orange-900"
+               className="block border-2 rounded-xl border-[#A65C37]"
              >
                <img
                  src="/Images/Location.png" // Ganti dengan screenshot peta kamu
@@ -216,7 +217,7 @@ export default function Home() {
                  loading="lazy"
                />
              </a>
-             <p className="text-center mt-4 text-sm text-gray-500">
+             <p className="text-center mt-4 text-sm text-[#A65C37]">
                (Klik peta di atas untuk lihat lokasi di Google Maps)
              </p>
            </div>

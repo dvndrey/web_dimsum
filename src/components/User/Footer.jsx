@@ -4,7 +4,7 @@ import React from 'react';
 
 export default function Footer() {
   return (
-    <footer className="bg-yellow-700 text-white py-10 px-6">
+    <footer className="bg-[#A65C37] text-white py-10 px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-8">
 
         {/* Left Section - Brand (Pepet Kiri) */}
@@ -39,12 +39,12 @@ export default function Footer() {
 
           {/* Social Media Icons - Right Aligned */}
           <div className="flex justify-end gap-4 cursor-pointer">
-            <a href="" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-              <img src="/Icons/TikTokIcon.png" alt="Tiktok" className="w-6 h-6 hover:opacity-80 transition" />
+            <a href="" target="_blank" rel="noopener noreferrer" aria-label="Tiktok">
+              <img src="/Icons/TikTokIcon.png" alt="Tiktok" className="w-6 h-6 hover:opacity-80 transition hover:scale-120" />
             </a>
 
-            <a href="" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-              <img src="/Icons/InstagramIcon.png" alt="Instagram" className="w-6 h-6 hover:opacity-80 transition" />
+            <a href="" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+              <img src="/Icons/InstagramIcon.png" alt="Instagram" className="w-6 h-6 hover:opacity-80 transition hover:scale-120" />
             </a>
 
           </div>
