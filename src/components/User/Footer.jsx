@@ -39,11 +39,11 @@ export default function Footer() {
 
           {/* Social Media Icons - Right Aligned */}
           <div className="flex justify-end gap-4 cursor-pointer">
-            <a href="" target="_blank" rel="noopener noreferrer" aria-label="Tiktok">
+            <a href="https://www.tiktok.com/@say.endulque?" target="_blank" rel="noopener noreferrer" aria-label="Tiktok">
               <img src="/Icons/TikTokIcon.png" alt="Tiktok" className="w-6 h-6 hover:opacity-80 transition hover:scale-120" />
             </a>
 
-            <a href="" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+            <a href="https://www.instagram.com/say.endulque?igsh=MTZ3NXFyOW12dmNlbA%3D%3D" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
               <img src="/Icons/InstagramIcon.png" alt="Instagram" className="w-6 h-6 hover:opacity-80 transition hover:scale-120" />
             </a>
 

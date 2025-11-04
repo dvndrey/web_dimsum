@@ -199,28 +199,24 @@ export default function Home() {
        {/* Outlet Kami Section */}
        <section className="py-16 bg-white px-4">
          <div className="max-w-6xl mx-auto">
-           <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Outlet Kami</h2>
-           <p className="text-gray-600 mb-8">Tersedia layanan COD & Delivery ke area sekitar.</p>
+           <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 text-center">Outlet Kami</h2>
+           <p className="text-gray-600 mb-8 text-center">Tersedia layanan COD & Delivery ke area sekitar.</p>
  
            {/* Map Image + Link */}
-           <div className="relative">
-             <a
-               href="https://maps.app.goo.gl/Nc3r3DhUe11powo16"
-               target="_blank"
-               rel="noopener noreferrer"
-               className="block border-2 rounded-xl border-[#A65C37]"
-             >
-               <img
-                 src="/Images/Location.png" // Ganti dengan screenshot peta kamu
-                 alt="Lokasi Outlet Kami"
-                 className="w-full h-auto rounded-xl shadow-md hover:shadow-lg transition cursor-pointer"
-                 loading="lazy"
-               />
-             </a>
-             <p className="text-center mt-4 text-sm text-[#A65C37]">
-               (Klik peta di atas untuk lihat lokasi di Google Maps)
-             </p>
-           </div>
+            {/* Google Maps Embed */}
+            <div className="relative border-2 rounded-xl border-[#A65C37] overflow-hidden shadow-md">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3955.1624248175176!2d110.82885447562668!3d-7.55726227462661!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e7a1717b4faa015%3A0x4cbe254bef4031fe!2sSay%20Endulque!5e0!3m2!1sen!2sid!4v1762233743686!5m2!1sen!2sid" // <-- GANTI DENGAN EMBED URL MILIKMU
+                width="100%"
+                height="450"
+                style={{ border: 0 }}
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Lokasi Outlet Kami"
+                className="w-full"
+              ></iframe>
+            </div>
          </div>
        </section>
  
