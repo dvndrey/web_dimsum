@@ -49,13 +49,13 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Kenapa Memilih Kami? Section */}
+       {/* Kenapa Memilih Kami? Section */}
         <section className="py-16 bg-white px-4">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-4xl md:text-5xl font-medium text-center mb-12">Kenapa Memilih Kami?</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Card 1 */}
-              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:shadow-[#ffb691] transition">
                 <div className="w-16 h-16 mb-4 flex items-center justify-center">
                   <img src="/Icons/MoneyIcon.png" alt="Bayar Saat Pesanan Tiba" className="w-12 h-12 object-contain" />
                 </div>
@@ -66,7 +66,7 @@ export default function Home() {
               </div>
 
               {/* Card 2 */}
-              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:shadow-[#ffb691] transition">
                 <div className="w-16 h-16 mb-4 flex items-center justify-center">
                   <img src="/Icons/PercentIcon.png" alt="Kepuasan Pelanggan Utama Kami" className="w-12 h-12 object-contain" />
                 </div>
@@ -77,7 +77,7 @@ export default function Home() {
               </div>
 
               {/* Card 3 */}
-              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:shadow-[#ffb691] transition">
                 <div className="w-16 h-16 mb-4 flex items-center justify-center">
                   <img src="/Icons/FindIcon.png" alt="Resep Asli Rumahan" className="w-12 h-12 object-contain" />
                 </div>
@@ -88,7 +88,7 @@ export default function Home() {
               </div>
 
               {/* Card 4 */}
-              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:shadow-[#ffb691] transition">
                 <div className="w-16 h-16 mb-4 flex items-center justify-center">
                   <img src="/Icons/QualityIcon.png" alt="Kualitas Terjamin, Rasa Konsisten" className="w-12 h-12 object-contain" />
                 </div>
@@ -107,7 +107,7 @@ export default function Home() {
             <h2 className="text-4xl md:text-4xl font-medium text-center text-gray-800 mb-8">Nikmati juga berbagai pilihan menu spesial kami!</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Menu 1 */}
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white rounded-xl overflow-hidden shadow-sm transition">
                 <div className="h-48 overflow-hidden">
                   <img src="/Images/DimsumMentai2.png" alt="Dimsum Mentai" className="w-full h-full object-cover" loading="lazy" />
                 </div>
@@ -117,7 +117,7 @@ export default function Home() {
               </div>
 
               {/* Menu 2 */}
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white rounded-xl overflow-hidden shadow-sm transition">
                 <div className="h-48 overflow-hidden">
                   <img src="/Images/Gyoza2.png" alt="Gyoza" className="w-full h-full object-cover" loading="lazy" />
                 </div>
@@ -127,7 +127,7 @@ export default function Home() {
               </div>
 
               {/* Menu 3 */}
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white rounded-xl overflow-hidden shadow-sm transition">
                 <div className="h-48 overflow-hidden">
                   <img src="/Images/SphagettiBrulee2.png" alt="Spaghetti Brulee" className="w-full h-full object-cover" loading="lazy" />
                 </div>
@@ -137,7 +137,7 @@ export default function Home() {
               </div>
 
               {/* Menu 4 */}
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="bg-white rounded-xl overflow-hidden shadow-sm transition">
                 <div className="h-48 overflow-hidden">
                   <img src="/Images/ChickenKatsuMentaiRice2.png" alt="Chicken Katsu Mental Rice" className="w-full h-full object-cover" loading="lazy" />
                 </div>
@@ -150,10 +150,10 @@ export default function Home() {
         </section>
 
         {/* Explore Menu Section */}
-        <section className="py-16 px-4">
+        <section className="py-12 px-4">
           <div className="max-w-4xl mx-auto text-center">
             <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-8">Jelajahi Beragam Menu Kami</h2>
+              <h2 className="text-2xl md:text-3xl font-b  old text-gray-800 mb-8">Jelajahi Beragam Menu Kami</h2>
               <p className="text-gray-600 mb-6">
                 Dimsum buatan tangan dengan rasa rumahan yang autentik,<br />
                 dibuat dengan sepenuh hati untuk Anda.
