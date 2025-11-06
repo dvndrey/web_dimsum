@@ -1,14 +1,56 @@
 // src/components/User/Footer.jsx
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { getOwnerData } from '../../../services/ownService.js'; // Sesuaikan path ke ownService.js
 
 export default function Footer() {
+  const [owner, setOwner] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchOwner = async () => {
+      try {
+        const data = await getOwnerData();
+        setOwner(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOwner();
+  }, []);
+
+  if (loading) {
+    return (
+      <footer className="bg-[#A65C37] text-white">
+        <div className="max-w-6xl mx-auto px-4 py-10 text-center">Loading...</div>
+      </footer>
+    );
+  }
+
+  if (error) {
+    return (
+      <footer className="bg-[#A65C37] text-white">
+        <div className="max-w-6xl mx-auto px-4 py-10 text-center text-red-300">
+          Gagal memuat data pemilik: {error}
+        </div>
+      </footer>
+    );
+  }
+
+  // Pastikan owner ada & fallback jika field kosong
+  const alamat = owner?.alamat || 'Gilingan, Kec. Banjarsari';
+  const telepon = owner?.telepon || '+62 851-6990-1919';
+  const email = owner?.email || 'sayendulque@gmail.com';
+
   return (
     <footer className="bg-[#A65C37] text-white">
       <div className="max-w-6xl mx-auto px-4 py-10">
         {/* Flex Container */}
         <div className="flex flex-col md:flex-row justify-between items-center md:items-start gap-10">
-
           {/* Brand Section */}
           <div className="text-center md:text-left">
             <div className="flex justify-center md:justify-start space-x-1">
@@ -27,17 +69,17 @@ export default function Footer() {
             <div className="space-y-3 text-sm w-full max-w-xs">
               <div className="flex items-center justify-center md:justify-end gap-2">
                 <img src="/Icons/TelephoneIcon.png" alt="Telepon" className="w-5 h-5 flex-shrink-0" />
-                <span>+62 851-6990-1919</span>
+                <span>{telepon}</span>
               </div>
 
               <div className="flex items-center justify-center md:justify-end gap-2">
                 <img src="/Icons/LocationIcon.png" alt="Lokasi" className="w-5 h-5 flex-shrink-0" />
-                <span className="text-center md:text-right">Gilingan, Kec. Banjarsari</span>
+                <span className="text-center md:text-right">{alamat}</span>
               </div>
 
               <div className="flex items-center justify-center md:justify-end gap-2">
                 <img src="/Icons/MailIcon.png" alt="Email" className="w-5 h-5 flex-shrink-0" />
-                <span className="text-center md:text-right break-words">sayendulque@gmail.com</span>
+                <span className="text-center md:text-right break-words">{email}</span>
               </div>
             </div>
 
