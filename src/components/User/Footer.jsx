@@ -27,7 +27,7 @@ export default function Footer() {
             <div className="space-y-3 text-sm w-full max-w-xs">
               <div className="flex items-center justify-center md:justify-end gap-2">
                 <img src="/Icons/TelephoneIcon.png" alt="Telepon" className="w-5 h-5 flex-shrink-0" />
-                <span>0838 6631 4265</span>
+                <span>+62 851-6990-1919</span>
               </div>
 
               <div className="flex items-center justify-center md:justify-end gap-2">
