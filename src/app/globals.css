@@ -7,6 +7,13 @@
   background: linear-gradient(to bottom, #F5F2E9, #C69C6D) !important;
 }
 
+@media (max-width: 768px) {
+  body {
+    padding-bottom: 72px; /* Tinggi mobile nav bar */
+    box-sizing: border-box;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -121,6 +128,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground h-screen overflow-y-auto;
   }
 }
