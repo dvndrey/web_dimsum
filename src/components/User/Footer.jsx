@@ -43,7 +43,7 @@ export default function Footer() {
 
   // Pastikan owner ada & fallback jika field kosong
   const alamat = owner?.alamat || 'Gilingan, Kec. Banjarsari';
-  const telepon = owner?.telepon || '+62 851-6990-1919';
+  const telepon = owner?.no_hp || '+62 851-6990-1919';
   const email = owner?.email || 'sayendulque@gmail.com';
 
   return (
