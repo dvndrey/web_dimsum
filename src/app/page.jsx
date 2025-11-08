@@ -2,10 +2,11 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import NavbarTab from '@/components/User/NavbarTab';
 import Footer from '@/components/User/Footer';
 import { getProduk } from '../../services/productService';
+import { getVarianByProduk } from '../../services/variantService';
 
 export default function Home() {
   const [activeView, setActiveView] = useState('home');
@@ -17,12 +18,17 @@ export default function Home() {
   // 🔹 Modal state
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalVariants, setModalVariants] = useState([]);
+  const [selectedVariants, setSelectedVariants] = useState({}); // { id_varian: jumlah }
 
+  // 🔹 Kategori & filter
   const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
   const filteredProduk = activeCategory === 'Semua'
     ? produk
     : produk.filter(p => p.kategori?.nama_kategori === activeCategory);
 
+  // ✅ Fetch produk
   useEffect(() => {
     const fetchProduk = async () => {
       try {
@@ -36,10 +42,10 @@ export default function Home() {
         setLoading(false);
       }
     };
-
     fetchProduk();
   }, []);
 
+  // ✅ Switch view
   const switchView = (view) => {
     setActiveView(view);
     setTimeout(() => {
@@ -49,31 +55,58 @@ export default function Home() {
     }, 50);
   };
 
-  const openVariantModal = (product) => {
-    setSelectedProduct(product);
-    setIsModalOpen(true);
-    // Prevent body scroll
-    document.body.style.overflow = 'hidden';
+  // ✅ Buka modal & fetch varian
+  const openVariantModal = async (product) => {
+    try {
+      setModalLoading(true);
+      setSelectedProduct(product);
+      setSelectedVariants({});
+
+      const variants = await getVarianByProduk(product.id_produk);
+      setModalVariants(variants);
+
+      setIsModalOpen(true);
+      document.body.style.overflow = 'hidden';
+    } catch (err) {
+      console.error('Gagal memuat varian:', err);
+      alert('Gagal memuat varian. Silakan coba lagi.');
+    } finally {
+      setModalLoading(false);
+    }
   };
 
+  // ✅ Tutup modal
   const closeVariantModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
-    // Restore body scroll
+    setSelectedVariants({});
     document.body.style.overflow = '';
   };
 
-  // Tutup modal saat tekan ESC
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') closeVariantModal();
-    };
-    if (isModalOpen) document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = ''; // cleanup
-    };
-  }, [isModalOpen]);
+  // ✅ Update jumlah varian (+/-)
+  const updateVariantQuantity = (id_varian, change) => {
+    setSelectedVariants(prev => {
+      const current = prev[id_varian] || 0;
+      const newQty = Math.max(0, current + change);
+      if (newQty === 0) {
+        const newState = { ...prev };
+        delete newState[id_varian];
+        return newState;
+      }
+      return { ...prev, [id_varian]: newQty };
+    });
+  };
+
+  // ✅ Hitung subtotal
+  const calculateSubtotal = () => {
+    return Object.entries(selectedVariants).reduce((total, [id_varian, qty]) => {
+      const variant = modalVariants.find(v => v.id_varian == id_varian);
+      return total + (variant?.harga_varian || 0) * qty;
+    }, 0);
+  };
+
+  // ✅ Total item
+  const totalItems = Object.values(selectedVariants).reduce((sum, q) => sum + q, 0);
 
   return (
     <div className="font-montserrat min-h-screen flex flex-col">
@@ -84,7 +117,6 @@ export default function Home() {
 
       <main className="flex-grow">
         {activeView === 'home' ? (
-          // 🏠 HOME VIEW — tetap sama
           <>
             {/* Hero Section */}
             <section className="relative w-full h-[750px] overflow-hidden">
@@ -129,10 +161,10 @@ export default function Home() {
                 <h2 className="text-4xl md:text-5xl font-medium text-center mb-12">Kenapa Memilih Kami?</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[
-                    { icon: '/Icons/MoneyIcon.png', title: 'Bayar Saat Pesanan Tiba', desc: 'Pesan tanpa khawatir — nikmati dulu kelezatannya, lalu bayar setelah pesanan sampai di tangan Anda.' },
+                    { icon: '/Icons/MoneyIcon.png', title: 'Bayar Saat Pesanan Tiba', desc: 'Pesan tanpa khawatir — nikmati dulu kelezatannya, lalu bayar setelah pesanan sampai.' },
                     { icon: '/Icons/PercentIcon.png', title: 'Kepuasan Pelanggan Utama Kami', desc: 'Kami selalu berusaha memberikan rasa dan pelayanan terbaik.' },
                     { icon: '/Icons/FindIcon.png', title: 'Resep Asli Rumahan', desc: 'Menunjukkan kehangatan dan ketulusan dalam proses pembuatan.' },
-                    { icon: '/Icons/QualityIcon.png', title: 'Kualitas Terjamin, Rasa Konsisten', desc: 'Kami menjaga setiap proses agar rasa dimsum kami selalu sama: lezat, lembut, dan terpercaya.' }
+                    { icon: '/Icons/QualityIcon.png', title: 'Kualitas Terjamin, Rasa Konsisten', desc: 'Kami menjaga setiap proses agar rasa dimsum kami selalu sama.' }
                   ].map((item, i) => (
                     <div key={i} className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:shadow-[#ffb691] transition">
                       <div className="w-16 h-16 mb-4 flex items-center justify-center">
@@ -221,7 +253,7 @@ export default function Home() {
             </section>
           </>
         ) : (
-          // 🍽️ MENU VIEW — 2 kolom, tombol centered
+          // 🍽️ MENU VIEW — 2 kolom
           <section className="py-12 px-4 bg-gray-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-10">
@@ -294,11 +326,10 @@ export default function Home() {
                         <div className="p-4">
                           <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
                           <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.deskripsi}</p>
-                          {/* ✅ TOMBOL CENTERED */}
                           <div className="flex justify-center mt-2">
                             <button
                               onClick={() => openVariantModal(item)}
-                              className="bg-[#A65C37] text-white mt-6 px-8 py-3 rounded-md text-sm font-medium hover:bg-[#d36e3b] transition cursor-pointer"
+                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition cursor-pointer"
                             >
                               Lihat Varian
                             </button>
@@ -319,7 +350,7 @@ export default function Home() {
               <div className="text-center mt-10">
                 <button
                   onClick={() => switchView('home')}
-                  className="text-[#A65C37] font-medium hover:text-[#d36e3b] flex items-center gap-2"
+                  className="text-[#A65C37] font-medium hover:text-[#d36e3b] flex items-center gap-2 cursor-pointer"
                 >
                   ← Kembali ke Beranda
                 </button>
@@ -329,37 +360,34 @@ export default function Home() {
         )}
       </main>
 
-      {/* 🔹 INLINE VARIANT MODAL — dengan backdrop blur & animasi */}
+      {/* 🔹 MODAL VARIANT — POSISI TENGAH (mobile & desktop) */}
       {isModalOpen && selectedProduct && (
         <>
-          {/* Overlay Blur dengan Animasi */}
+          {/* Overlay Blur */}
           <div 
-            className="fixed inset-0 z-40 bg-opacity-30 opacity-0 ease-in-out"
+            className="fixed inset-0 z-40 bg-opacity-30 opacity-0"
             style={{
-              // Transisi smooth
-              transition: 'opacity 1s ease, backdrop-filter 0.3s ease',
-              // Pastikan animasi dipicu saat muncul
+              transition: 'opacity 0.3s ease, backdrop-filter 0.3s ease',
               opacity: isModalOpen ? 1 : 0,
-              backdropFilter: isModalOpen ? 'blur(5px)' : 'blur(0px)',
+              backdropFilter: isModalOpen ? 'blur(10px)' : 'blur(0px)',
               WebkitBackdropFilter: isModalOpen ? 'blur(10px)' : 'blur(0px)',
-              // Optimasi performa
               willChange: 'opacity, backdrop-filter',
             }}
             onClick={closeVariantModal}
           />
 
-          {/* Modal Card */}
+          {/* Modal — SELALU DI TENGAH */}
           <div 
-            className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 transition-opacity duration-1000 ${isModalOpen ? 'opacity-100' : 'opacity-0'}`}
+            className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${isModalOpen ? 'opacity-100' : 'opacity-0'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div 
-              className={`bg-white rounded-t-3xl sm:rounded-lg shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto transform transition-all duration-300 ease-out ${
+              className={`bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out ${
                 isModalOpen 
                   ? 'translate-y-0 opacity-100 scale-100' 
-                  : 'translate-y-full opacity-0 scale-95 sm:translate-y-0'
+                  : 'translate-y-10 opacity-0 scale-95'
               }`}
-              style={{ maxHeight: 'calc(100vh - 4rem)' }}
+              style={{ maxHeight: 'calc(100vh - 2rem)' }}
             >
               {/* Header */}
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -379,54 +407,128 @@ export default function Home() {
               </div>
 
               {/* Body */}
-              <div className="p-4 space-y-3 max-h-[50vh] overflow-y-auto">
+              <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
                 <h4 className="text-sm font-medium text-gray-600">
-                  Pilih varian ({selectedProduct.varian?.length || 0})
+                  {modalLoading 
+                    ? 'Memuat varian...' 
+                    : `Pilih varian (${modalVariants.length})`}
                 </h4>
-                {(selectedProduct.varian || []).map((variant, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      variant.stok <= 0
-                        ? 'bg-gray-100 border-gray-300 text-gray-500'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                    onClick={() => {
-                      if (variant.stok > 0) {
-                        alert(`✅ ${variant.nama_varian} dipilih\nHarga: Rp ${variant.harga.toLocaleString('id-ID')}\nStok: ${variant.stok}`);
-                        closeVariantModal();
-                      }
-                    }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h5 className="font-medium text-gray-900">{variant.nama_varian}</h5>
-                        <p className="text-xs text-gray-500 mt-1">Stok: {variant.stok}</p>
+
+                {modalLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+                  </div>
+                ) : modalVariants.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Belum ada varian tersedia.</p>
+                ) : (
+                  modalVariants.map((variant) => {
+                    const qty = selectedVariants[variant.id_varian] || 0;
+                    const isSelected = qty > 0;
+
+                    return (
+                      <div
+                        key={variant.id_varian}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          variant.stok_varian <= 0
+                            ? 'bg-gray-100 border-gray-300 text-gray-500'
+                            : isSelected
+                              ? 'bg-[#ededed] border-[#d36e3b] shadow-sm'
+                              : 'border-gray-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h5 className="font-medium text-gray-900">{variant.nama_varian}</h5>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Stok: {variant.stok_varian}
+                            </p>
+                          </div>
+                          <div className="text-right flex flex-col items-end gap-1">
+                            <p className="font-bold text-[#A65C37]">
+                              Rp {variant.harga_varian?.toLocaleString('id-ID')}
+                            </p>
+                            {variant.stok_varian > 0 && (
+                              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-2 py-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateVariantQuantity(variant.id_varian, -1);
+                                  }}
+                                  className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded cursor-pointer"
+                                >
+                                  −
+                                </button>
+                                <span className="text-sm font-medium w-6 text-center">{qty}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (qty < variant.stok_varian) {
+                                      updateVariantQuantity(variant.id_varian, 1);
+                                    }
+                                  }}
+                                  className={`w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 cursor-pointer rounded ${
+                                    qty >= variant.stok_varian ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-[#A65C37]">
-                          Rp {variant.harga?.toLocaleString('id-ID')}
-                        </p>
-                      </div>
+                    );
+                  })
+                )}
+
+                {/* Subtotal */}
+                {Object.keys(selectedVariants).length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Subtotal:</span>
+                      <span className="font-bold text-gray-900">
+                        Rp {calculateSubtotal().toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-600">Total Item:</span>
+                      <span className="font-bold text-gray-900">
+                        {totalItems} item
+                      </span>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
 
-              {/* Footer — centered */}
+              {/* Footer */}
               <div className="p-4 border-t border-gray-200 flex justify-center gap-3">
                 <button
                   onClick={() => {
-                    alert('⚠️ Silakan pilih varian terlebih dahulu.');
+                    if (totalItems === 0) {
+                      alert('⚠️ Belum ada varian yang dipilih.');
+                      return;
+                    }
+                    const cartItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
+                      const variant = modalVariants.find(v => v.id_varian == id_varian);
+                      return {
+                        id_varian,
+                        nama_varian: variant?.nama_varian,
+                        harga: variant?.harga_varian,
+                        jumlah: qty,
+                        subtotal: (variant?.harga_varian || 0) * qty
+                      };
+                    });
+                    console.log('🛒 Keranjang:', cartItems);
+                    alert(`✅ Berhasil! ${totalItems} item ditambahkan ke keranjang.\nTotal: Rp ${calculateSubtotal().toLocaleString('id-ID')}`);
                     closeVariantModal();
                   }}
-                  className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] transition"
+                  className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] cursor-pointer transition"
                 >
                   Tambah Ke Keranjang
                 </button>
                 <button
                   onClick={closeVariantModal}
-                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition cursor-pointer"
                 >
                   Tutup
                 </button>
