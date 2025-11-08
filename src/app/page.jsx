@@ -2,33 +2,46 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import NavbarTab from '@/components/User/NavbarTab';
 import Footer from '@/components/User/Footer';
+import { getProduk } from '../../services/productService';
 
 export default function Home() {
-  const [activeView, setActiveView] = useState('home'); // 'home' | 'menu'
+  const [activeView, setActiveView] = useState('home');
   const [activeCategory, setActiveCategory] = useState('Semua');
+  const [produk, setProduk] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // 🔹 Data menu statis
-  const menuItems = [
-    { id: 1, category: 'Makanan', name: 'Gyoza', description: 'Kulit tipis berisi daging ayam juicy, dimasak renyah dan disajikan dengan saus khas kami.', image: '/Images/Gyoza2.png', price: 'Rp 25.000' },
-    { id: 2, category: 'Makanan', name: 'Dimsum Mentai', description: 'Dimsum lembut berpadu saus mentai creamy dan gurih.', image: '/Images/DimsumMentai2.png', price: 'Rp 30.000' },
-    { id: 3, category: 'Makanan', name: 'Spaghetti Brulee', description: 'Spaghetti creamy berpadu saus keju dan ayam chicking, dipanggang hingga keemasan.', image: '/Images/SphagettiBrulee2.png', price: 'Rp 40.000' },
-    { id: 4, category: 'Makanan', name: 'Chicken Katsu Mentai Rice', description: 'Nasi hangat dengan chicken katsu renyah, disiram saus mentai creamy.', image: '/Images/ChickenKatsuMentaiRice2.png', price: 'Rp 42.000' },
-    { id: 5, category: 'Minuman', name: 'Original Thai Tea', description: 'Teh susu khas Thailand dengan rasa manis dan creamy yang menyegarkan.', image: '/Images/ThaiTea.jpg', price: 'Rp 18.000' },
-    { id: 6, category: 'Minuman', name: 'Green Thai Tea', description: 'Perpaduan unik antara teh hijau dan susu yang lembut.', image: '/Images/GreenThaiTea.jpg', price: 'Rp 18.000' },
-  ];
+  // 🔹 Modal state
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const categories = ['Semua', 'Makanan', 'Minuman'];
-  const filteredMenu = activeCategory === 'Semua'
-    ? menuItems
-    : menuItems.filter(item => item.category === activeCategory);
+  const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
+  const filteredProduk = activeCategory === 'Semua'
+    ? produk
+    : produk.filter(p => p.kategori?.nama_kategori === activeCategory);
 
-  // ✅ Switch view + scroll ke atas
+  useEffect(() => {
+    const fetchProduk = async () => {
+      try {
+        setLoading(true);
+        const data = await getProduk();
+        setProduk(data);
+      } catch (err) {
+        console.error('Gagal fetch produk:', err);
+        setError('Gagal memuat menu. Silakan coba lagi nanti.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduk();
+  }, []);
+
   const switchView = (view) => {
     setActiveView(view);
-    // Delay scroll sedikit agar transisi halus setelah render
     setTimeout(() => {
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -36,9 +49,34 @@ export default function Home() {
     }, 50);
   };
 
+  const openVariantModal = (product) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeVariantModal = () => {
+    setIsModalOpen(false);
+    setSelectedProduct(null);
+    // Restore body scroll
+    document.body.style.overflow = '';
+  };
+
+  // Tutup modal saat tekan ESC
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') closeVariantModal();
+    };
+    if (isModalOpen) document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = ''; // cleanup
+    };
+  }, [isModalOpen]);
+
   return (
     <div className="font-montserrat min-h-screen flex flex-col">
-      {/* 🔁 Kirim activeView & setter ke NavbarTab agar highlight benar */}
       <NavbarTab 
         activeView={activeView} 
         onSwitchView={switchView} 
@@ -46,7 +84,7 @@ export default function Home() {
 
       <main className="flex-grow">
         {activeView === 'home' ? (
-          // 🏠 HOME VIEW
+          // 🏠 HOME VIEW — tetap sama
           <>
             {/* Hero Section */}
             <section className="relative w-full h-[750px] overflow-hidden">
@@ -121,19 +159,19 @@ export default function Home() {
                   Nikmati juga berbagai pilihan menu spesial kami!
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {menuItems.slice(0, 4).map(item => (
-                    <div key={item.id} className="bg-white rounded-xl overflow-hidden shadow-sm transition hover:shadow-md">
+                  {produk.slice(0, 4).map(item => (
+                    <div key={item.id_produk} className="bg-white rounded-xl overflow-hidden shadow-sm transition hover:shadow-md">
                       <div className="relative h-48 w-full">
                         <Image
-                          src={item.image}
-                          alt={item.name}
+                          src={Array.isArray(item.url_gambar) ? (item.url_gambar[0] || '/placeholder.jpg') : item.url_gambar}
+                          alt={item.nama_produk}
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
                         />
                       </div>
                       <div className="p-4">
-                        <h3 className="text-lg font-medium text-gray-800">{item.name}</h3>
+                        <h3 className="text-lg font-medium text-gray-800">{item.nama_produk}</h3>
                       </div>
                     </div>
                   ))}
@@ -141,7 +179,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* CTA Section */}
+            {/* CTA */}
             <section className="py-12 px-4">
               <div className="max-w-4xl mx-auto text-center">
                 <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
@@ -162,7 +200,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Outlet Section */}
+            {/* Outlet */}
             <section className="py-16 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 text-center">Outlet Kami</h2>
@@ -183,77 +221,105 @@ export default function Home() {
             </section>
           </>
         ) : (
-          // 🍽️ MENU VIEW
+          // 🍽️ MENU VIEW — 2 kolom, tombol centered
           <section className="py-12 px-4 bg-gray-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-10">
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900">Menu Kami</h1>
                 <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
-                  Nikmati berbagai hidangan lezat, dibuat dengan bahan segar dan resep istimewa.
+                  {loading ? 'Memuat menu...' : error ? 'Gagal memuat menu.' : 'Nikmati berbagai hidangan lezat, dibuat dengan bahan segar dan resep istimewa.'}
                 </p>
               </div>
 
-              {/* Category Filter */}
-              <div className="flex flex-wrap justify-center gap-3 mb-8">
-                {categories.map(category => (
-                  <button
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
-                    className={`px-6 py-2.5 rounded-full font-medium transition-all duration-200 ${
-                      activeCategory === category
-                        ? 'bg-[#A65C37] text-white shadow-md'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
-
-              {/* Menu Grid */}
-              {filteredMenu.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {filteredMenu.map(item => (
-                    <div
-                      key={item.id}
-                      className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition"
+              {!loading && !error && (
+                <div className="flex flex-wrap justify-center gap-3 mb-8">
+                  {kategoriList.map(category => (
+                    <button
+                      key={category}
+                      onClick={() => setActiveCategory(category)}
+                      className={`px-6 py-2.5 rounded-full font-medium transition-all duration-200 ${
+                        activeCategory === category
+                          ? 'bg-[#A65C37] text-white shadow-md'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                      }`}
                     >
-                      <div className="relative h-48 w-full">
-                        <Image
-                          src={item.image}
-                          alt={item.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                        />
-                      </div>
-                      <div className="p-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{item.name}</h3>
-                        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-[#A65C37]">{item.price}</span>
-                          <button
-                            onClick={() => window.open('https://wa.me/6285169901919', '_blank')}
-                            className="bg-[#A65C37] text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-[#d36e3b] transition"
-                          >
-                            Pesan
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      {category}
+                    </button>
                   ))}
                 </div>
-              ) : (
+              )}
+
+              {loading && (
+                <div className="text-center py-12">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
+                    <span className="sr-only">Loading...</span>
+                  </div>
+                  <p className="mt-4 text-gray-600">Memuat menu...</p>
+                </div>
+              )}
+
+              {error && (
+                <div className="text-center py-12 text-red-500">
+                  <p>{error}</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-4 px-4 py-2 bg-[#A65C37] text-white rounded-full"
+                  >
+                    Coba Lagi
+                  </button>
+                </div>
+              )}
+
+              {!loading && !error && filteredProduk.length > 0 && (
+                <div className="grid grid-cols-2 gap-6">
+                  {filteredProduk.map(item => {
+                    const gambar = Array.isArray(item.url_gambar)
+                      ? item.url_gambar[0]
+                      : item.url_gambar || '/placeholder.jpg';
+
+                    return (
+                      <div
+                        key={item.id_produk}
+                        className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition"
+                      >
+                        <div className="relative h-48 w-full">
+                          <Image
+                            src={gambar}
+                            alt={item.nama_produk}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                          />
+                        </div>
+                        <div className="p-4">
+                          <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
+                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.deskripsi}</p>
+                          {/* ✅ TOMBOL CENTERED */}
+                          <div className="flex justify-center mt-2">
+                            <button
+                              onClick={() => openVariantModal(item)}
+                              className="bg-[#A65C37] text-white mt-6 px-8 py-3 rounded-md text-sm font-medium hover:bg-[#d36e3b] transition cursor-pointer"
+                            >
+                              Lihat Varian
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!loading && !error && filteredProduk.length === 0 && (
                 <div className="text-center py-12 text-gray-500">
                   Tidak ada menu untuk kategori ini.
                 </div>
               )}
 
-              {/* Back to Home */}
               <div className="text-center mt-10">
                 <button
                   onClick={() => switchView('home')}
-                  className="text-[#A65C37] font-medium hover:text-[#d36e3b] flex items-center gap-1 mx-auto"
+                  className="text-[#A65C37] font-medium hover:text-[#d36e3b] flex items-center gap-2"
                 >
                   ← Kembali ke Beranda
                 </button>
@@ -262,6 +328,113 @@ export default function Home() {
           </section>
         )}
       </main>
+
+      {/* 🔹 INLINE VARIANT MODAL — dengan backdrop blur & animasi */}
+      {isModalOpen && selectedProduct && (
+        <>
+          {/* Overlay Blur dengan Animasi */}
+          <div 
+            className="fixed inset-0 z-40 bg-opacity-30 opacity-0 ease-in-out"
+            style={{
+              // Transisi smooth
+              transition: 'opacity 1s ease, backdrop-filter 0.3s ease',
+              // Pastikan animasi dipicu saat muncul
+              opacity: isModalOpen ? 1 : 0,
+              backdropFilter: isModalOpen ? 'blur(5px)' : 'blur(0px)',
+              WebkitBackdropFilter: isModalOpen ? 'blur(10px)' : 'blur(0px)',
+              // Optimasi performa
+              willChange: 'opacity, backdrop-filter',
+            }}
+            onClick={closeVariantModal}
+          />
+
+          {/* Modal Card */}
+          <div 
+            className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 transition-opacity duration-1000 ${isModalOpen ? 'opacity-100' : 'opacity-0'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div 
+              className={`bg-white rounded-t-3xl sm:rounded-lg shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto transform transition-all duration-300 ease-out ${
+                isModalOpen 
+                  ? 'translate-y-0 opacity-100 scale-100' 
+                  : 'translate-y-full opacity-0 scale-95 sm:translate-y-0'
+              }`}
+              style={{ maxHeight: 'calc(100vh - 4rem)' }}
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-.416 1.088-.416 1.514 0L12 4.5l.169.169m-1.316 6.842a1.5 1.5 0 112.688 0 1.5 1.5 0 01-2.688 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.769 4H5.231C3.995 4 3 5.005 3 6.24v11.52c0 1.235.995 2.24 2.231 2.24h14.538c1.236 0 2.231-1.005 2.231-2.24V6.24C22 5.005 21.005 4 19.769 4z" />
+                  </svg>
+                  Varian {selectedProduct.nama_produk}
+                </h3>
+                <button
+                  onClick={closeVariantModal}
+                  className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-4 space-y-3 max-h-[50vh] overflow-y-auto">
+                <h4 className="text-sm font-medium text-gray-600">
+                  Pilih varian ({selectedProduct.varian?.length || 0})
+                </h4>
+                {(selectedProduct.varian || []).map((variant, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      variant.stok <= 0
+                        ? 'bg-gray-100 border-gray-300 text-gray-500'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      if (variant.stok > 0) {
+                        alert(`✅ ${variant.nama_varian} dipilih\nHarga: Rp ${variant.harga.toLocaleString('id-ID')}\nStok: ${variant.stok}`);
+                        closeVariantModal();
+                      }
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h5 className="font-medium text-gray-900">{variant.nama_varian}</h5>
+                        <p className="text-xs text-gray-500 mt-1">Stok: {variant.stok}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-[#A65C37]">
+                          Rp {variant.harga?.toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer — centered */}
+              <div className="p-4 border-t border-gray-200 flex justify-center gap-3">
+                <button
+                  onClick={() => {
+                    alert('⚠️ Silakan pilih varian terlebih dahulu.');
+                    closeVariantModal();
+                  }}
+                  className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] transition"
+                >
+                  Tambah Ke Keranjang
+                </button>
+                <button
+                  onClick={closeVariantModal}
+                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <Footer />
     </div>
