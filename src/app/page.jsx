@@ -378,12 +378,6 @@ export default function Home() {
                   Tidak ada menu untuk kategori dan kata kunci ini.
                 </div>
               )}
-
-              <div className="text-center mt-10">
-                <button onClick={() => switchView('home')} className="text-[#A65C37] font-medium hover:text-[#d36e3b] flex items-center gap-2">
-                  ← Kembali ke Beranda
-                </button>
-              </div>
             </div>
           </section>
         )}
