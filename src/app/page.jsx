@@ -1,4 +1,3 @@
-// src/app/page.jsx
 'use client';
 
 import Image from 'next/image';
@@ -11,6 +10,7 @@ import { getVarianByProduk } from '../../services/variantService';
 export default function Home() {
   const [activeView, setActiveView] = useState('home');
   const [activeCategory, setActiveCategory] = useState('Semua');
+  const [searchQuery, setSearchQuery] = useState(''); // 🔍 tambahan
   const [produk, setProduk] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,13 +20,24 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalVariants, setModalVariants] = useState([]);
-  const [selectedVariants, setSelectedVariants] = useState({}); // { id_varian: jumlah }
+  const [selectedVariants, setSelectedVariants] = useState({});
 
-  // 🔹 Kategori & filter
+  // ✅ Filter produk — gabungkan kategori & pencarian
   const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
-  const filteredProduk = activeCategory === 'Semua'
-    ? produk
-    : produk.filter(p => p.kategori?.nama_kategori === activeCategory);
+
+  const filteredProduk = produk
+    .filter(p => {
+      const matchCategory = 
+        activeCategory === 'Semua' || 
+        p.kategori?.nama_kategori === activeCategory;
+      
+      const matchSearch = 
+        !searchQuery.trim() || 
+        p.nama_produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.deskripsi && p.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      return matchCategory && matchSearch;
+    });
 
   // ✅ Fetch produk
   useEffect(() => {
@@ -253,7 +264,7 @@ export default function Home() {
             </section>
           </>
         ) : (
-          // 🍽️ MENU VIEW — 2 kolom
+          // 🍽️ MENU VIEW — 2 kolom + search
           <section className="py-12 px-4 bg-gray-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-10">
@@ -264,20 +275,63 @@ export default function Home() {
               </div>
 
               {!loading && !error && (
-                <div className="flex flex-wrap justify-center gap-3 mb-8">
-                  {kategoriList.map(category => (
-                    <button
-                      key={category}
-                      onClick={() => setActiveCategory(category)}
-                      className={`px-6 py-2.5 rounded-full font-medium transition-all duration-200 ${
-                        activeCategory === category
-                          ? 'bg-[#A65C37] text-white shadow-md'
-                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
+                <div className="flex flex-col items-center gap-4 mb-8">
+                  {/* Kategori */}
+                  <div className="flex flex-wrap justify-center gap-3">
+                    {kategoriList.map(category => (
+                      <button
+                        key={category}
+                        onClick={() => {
+                          setActiveCategory(category);
+                          setSearchQuery('');
+                        }}
+                        className={`px-6 py-2.5 rounded-full font-medium transition-all duration-200 ${
+                          activeCategory === category
+                            ? 'bg-[#A65C37] text-white shadow-md'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="w-full max-w-md">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={`Cari di kategori "${activeCategory}"...`}
+                        className="w-full px-4 py-2.5 pl-10 pr-10 rounded-full border border-gray-300 focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none transition"
+                      />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          aria-label="Clear search"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -309,10 +363,15 @@ export default function Home() {
                       ? item.url_gambar[0]
                       : item.url_gambar || '/placeholder.jpg';
 
+                    const isMatchSearch = searchQuery.trim() !== '' && 
+                      item.nama_produk.toLowerCase().includes(searchQuery.toLowerCase());
+
                     return (
                       <div
                         key={item.id_produk}
-                        className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition"
+                        className={`bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition ${
+                          isMatchSearch ? 'ring-2 ring-[#A65C37] bg-[#A65C37]/5' : ''
+                        }`}
                       >
                         <div className="relative h-48 w-full">
                           <Image
@@ -343,7 +402,7 @@ export default function Home() {
 
               {!loading && !error && filteredProduk.length === 0 && (
                 <div className="text-center py-12 text-gray-500">
-                  Tidak ada menu untuk kategori ini.
+                  Tidak ada menu untuk kategori dan kata kunci ini.
                 </div>
               )}
 
@@ -360,12 +419,11 @@ export default function Home() {
         )}
       </main>
 
-      {/* 🔹 MODAL VARIANT — POSISI TENGAH (mobile & desktop) */}
+      {/* 🔹 MODAL VARIANT */}
       {isModalOpen && selectedProduct && (
         <>
-          {/* Overlay Blur */}
           <div 
-            className="fixed inset-0 z-40 bg-opacity-30 opacity-0"
+            className="fixed inset-0 z-40 bg-opacity-10"
             style={{
               transition: 'opacity 0.3s ease, backdrop-filter 0.3s ease',
               opacity: isModalOpen ? 1 : 0,
@@ -376,7 +434,6 @@ export default function Home() {
             onClick={closeVariantModal}
           />
 
-          {/* Modal — SELALU DI TENGAH */}
           <div 
             className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${isModalOpen ? 'opacity-100' : 'opacity-0'}`}
             onClick={(e) => e.stopPropagation()}
@@ -389,7 +446,6 @@ export default function Home() {
               }`}
               style={{ maxHeight: 'calc(100vh - 2rem)' }}
             >
-              {/* Header */}
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -406,7 +462,6 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Body */}
               <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
                 <h4 className="text-sm font-medium text-gray-600">
                   {modalLoading 
@@ -481,7 +536,6 @@ export default function Home() {
                   })
                 )}
 
-                {/* Subtotal */}
                 {Object.keys(selectedVariants).length > 0 && (
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <div className="flex justify-between text-sm">
@@ -500,7 +554,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Footer */}
               <div className="p-4 border-t border-gray-200 flex justify-center gap-3">
                 <button
                   onClick={() => {
