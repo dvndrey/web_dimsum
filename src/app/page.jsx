@@ -195,33 +195,28 @@ export default function Home() {
       <main className="flex-grow pb-20">
         {activeView === 'home' && (
           <>
+            {/* Hero Section */}
             <section className="relative w-full h-[750px] overflow-hidden">
               <Image
                 src="/Images/BannerBackground.jpg"
                 alt="Banner"
                 fill
                 className="absolute inset-0 object-cover brightness-65"
-                style={{ filter: 'blur(3px)' }}
+                style={{ filter: 'blur(7px)' }}
                 priority
                 sizes="100vw"
               />
-              <div className="relative z-10 flex flex-col items-center justify-center h-full text-white px-4 text-center">
+              <div className="relative z-10 flex flex-col items-center justify-center text-white h-full px-4 text-center text-shadow-lg">
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
                   Nikmati Cita Rasa<br />Dimsum Rumahan<br />dengan Rasa Premium
                 </h1>
-                <p className="text-lg md:text-xl mb-8 max-w-2xl">
+                <p className="text-lg md:text-xl mb-8 max-w-2xl text-shadow-lg">
                   Kami percaya rasa terbaik lahir dari sentuhan tangan dan ketulusan hati.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
-                    onClick={() => window.open('https://wa.me/6285169901919', '_blank')}
-                    className="bg-[#A65C37] hover:bg-[#d36e3b] hover:scale-103 text-white font-medium py-3 px-6 rounded-full transition"
-                  >
-                    Order Sekarang
-                  </button>
-                  <button
                     onClick={() => switchView('menu')}
-                    className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-103 font-medium py-3 px-6 rounded-full transition"
+                    className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-105 font-medium py-3 px-6 rounded-full cursor-pointer transition"
                   >
                     Lihat Menu
                   </button>
@@ -229,6 +224,7 @@ export default function Home() {
               </div>
             </section>
 
+            {/* Kenapa Memilih Kami? */}
             <section className="py-16 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-4xl md:text-5xl font-medium text-center mb-12">Kenapa Memilih Kami?</h2>
@@ -251,6 +247,55 @@ export default function Home() {
               </div>
             </section>
 
+            {/* 🔹 Special Menu Preview — "Nikmati berbagai pilihan menu spesial kami" */}
+            <section className="py-10 bg-white px-4">
+              <div className="max-w-6xl mx-auto">
+                <h2 className="text-4xl md:text-4xl font-medium text-center text-gray-800 mb-8">
+                  Nikmati berbagai pilihan menu spesial kami!
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {produk.slice(0, 4).map(item => (
+                    <div key={item.id_produk} className="bg-white rounded-xl overflow-hidden shadow-sm transition hover:shadow-md">
+                      <div className="relative h-48 w-full">
+                        <Image
+                          src={Array.isArray(item.url_gambar) ? (item.url_gambar[0] || '/placeholder.jpg') : item.url_gambar}
+                          alt={item.nama_produk}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                        />
+                      </div>
+                      <div className="p-4">
+                        <h3 className="text-lg font-medium text-gray-800">{item.nama_produk}</h3>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* 🔹 CTA — "Jelajahi beragam menu kami" */}
+            <section className="py-12 px-4">
+              <div className="max-w-4xl mx-auto text-center">
+                <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">
+                    Jelajahi Beragam Menu Kami
+                  </h2>
+                  <p className="text-gray-600 mb-6">
+                    Dimsum buatan tangan dengan rasa rumahan yang autentik,<br />
+                    dibuat dengan sepenuh hati untuk Anda.
+                  </p>
+                  <button
+                    onClick={() => switchView('menu')}
+                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition cursor-pointer"
+                  >
+                    Lihat Semua Menu
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* Outlet */}
             <section className="py-16 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 text-center">Outlet Kami</h2>
@@ -258,7 +303,12 @@ export default function Home() {
                 <div className="relative border-2 rounded-xl border-[#A65C37] overflow-hidden shadow-md">
                   <iframe
                     src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3955.1624248175176!2d110.82885447562668!3d-7.55726227462661!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e7a1717b4faa015%3A0x4cbe254bef4031fe!2sSay%20Endulque!5e0!3m2!1sen!2sid!4v1762233743686!5m2!1sen!2sid"
-                    width="100%" height="450" style={{ border: 0 }} allowFullScreen loading="lazy"
+                    width="100%"
+                    height="450"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
                     title="Lokasi Outlet"
                   ></iframe>
                 </div>
