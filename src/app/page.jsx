@@ -72,7 +72,7 @@ export default function Home() {
     }
   };
 
-  // ✅ Buka modal produk
+  // ✅ Buka modal produk — tanpa alert saat error
   const openVariantModal = async (product) => {
     try {
       setModalLoading(true);
@@ -85,7 +85,8 @@ export default function Home() {
       setIsModalOpen(true);
       document.body.style.overflow = 'hidden';
     } catch (err) {
-      alert('Gagal memuat varian.');
+      console.error('Gagal memuat varian:', err);
+      // ❌ TIDAK ADA alert — hanya log ke console
     } finally {
       setModalLoading(false);
     }
@@ -98,10 +99,10 @@ export default function Home() {
     document.body.style.overflow = '';
   };
 
-  // ✅ Update keranjang dari modal
+  // ✅ Tambah ke keranjang — tanpa alert sama sekali
   const addToCart = () => {
+    // Jika belum pilih varian: diam saja (atau Anda bisa tambahkan efek UI halus jika perlu)
     if (Object.keys(selectedVariants).length === 0) {
-      alert('⚠️ Belum ada varian yang dipilih.');
       return;
     }
 
@@ -123,8 +124,7 @@ export default function Home() {
     });
 
     setCartItems(prev => [...prev, ...newItems]);
-    alert(`✅ ${newItems.reduce((s, i) => s + i.jumlah, 0)} item ditambahkan ke keranjang.`);
-    closeVariantModal();
+    closeVariantModal(); // ✅ langsung tutup modal, tanpa alert
   };
 
   // ✅ Hitung subtotal & total
@@ -444,7 +444,6 @@ export default function Home() {
 
               {cartItems.length === 0 ? (
                 <div className="text-center py-12">
-                  <Image src="/Images/EmptyCart.png" alt="Kosong" width={120} height={120} className="mx-auto mb-4" />
                   <h3 className="text-xl font-medium text-gray-800 mb-2">Keranjangmu masih kosong</h3>
                   <p className="text-gray-600 mb-6">Yuk tambahkan menu favoritmu!</p>
                   <button
