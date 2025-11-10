@@ -32,6 +32,9 @@ export default function Home() {
   // 🔹 Keranjang
   const [cartItems, setCartItems] = useState([]);
 
+  // 🔹 Mobile price summary toggle
+  const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
+
   // ✅ Load data produk & keranjang
   useEffect(() => {
     const fetchProduk = async () => {
@@ -86,7 +89,6 @@ export default function Home() {
       document.body.style.overflow = 'hidden';
     } catch (err) {
       console.error('Gagal memuat varian:', err);
-      // ❌ TIDAK ADA alert — hanya log ke console
     } finally {
       setModalLoading(false);
     }
@@ -101,10 +103,7 @@ export default function Home() {
 
   // ✅ Tambah ke keranjang — tanpa alert sama sekali
   const addToCart = () => {
-    // Jika belum pilih varian: diam saja (atau Anda bisa tambahkan efek UI halus jika perlu)
-    if (Object.keys(selectedVariants).length === 0) {
-      return;
-    }
+    if (Object.keys(selectedVariants).length === 0) return;
 
     const newItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
@@ -124,7 +123,7 @@ export default function Home() {
     });
 
     setCartItems(prev => [...prev, ...newItems]);
-    closeVariantModal(); // ✅ langsung tutup modal, tanpa alert
+    closeVariantModal();
   };
 
   // ✅ Hitung subtotal & total
@@ -188,6 +187,18 @@ export default function Home() {
     });
   };
 
+  // ✅ Kirim ke WhatsApp
+  const handleCheckout = () => {
+    let message = "Halo, saya ingin memesan:\n\n";
+    cartItems.forEach(item => {
+      message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} — @${formatRupiah(item.harga)}\n`;
+    });
+    message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
+
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+  };
+
   return (
     <div className="font-montserrat min-h-screen flex flex-col">
       <NavbarTab activeView={activeView} onSwitchView={switchView} />
@@ -247,7 +258,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 🔹 Special Menu Preview — "Nikmati berbagai pilihan menu spesial kami" */}
+            {/* 🔹 Special Menu Preview */}
             <section className="py-10 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-4xl md:text-4xl font-medium text-center text-gray-800 mb-8">
@@ -274,7 +285,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 🔹 CTA — "Jelajahi beragam menu kami" */}
+            {/* 🔹 CTA */}
             <section className="py-12 px-4">
               <div className="max-w-4xl mx-auto text-center">
                 <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
@@ -488,9 +499,28 @@ export default function Home() {
                   <div className="lg:col-span-1">
                     <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm">
                       <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Order</h2>
-                      <div className="space-y-3">
+                      
+                      {/* 🔹 Detail Item List */}
+                      <div className="space-y-3 mb-4">
+                        {cartItems.map(item => (
+                          <div key={item.id} className="flex justify-between py-2 border-b border-gray-100">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{item.nama_produk}</span>
+                              <span className="text-sm text-gray-600">Varian: {item.nama_varian}</span>
+                              <span className="text-sm text-gray-600">Jumlah: x{item.jumlah}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="block">Harga/item: {formatRupiah(item.harga)}</span>
+                              <span className="font-bold">Subtotal: {formatRupiah(item.subtotal)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 🔹 Summary Totals */}
+                      <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex justify-between">
-                          <span>Subtotal</span>
+                          <span>Subtotal (Semua Item)</span>
                           <span className="font-bold">{formatRupiah(subtotal)}</span>
                         </div>
                         <hr className="border-gray-200" />
@@ -501,16 +531,7 @@ export default function Home() {
                       </div>
 
                       <button
-                        onClick={() => {
-                          let message = "Halo, saya ingin memesan:\n\n";
-                          cartItems.forEach(item => {
-                            message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} - ${formatRupiah(item.harga)}\n`;
-                          });
-                          message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
-
-                          const encoded = encodeURIComponent(message);
-                          window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
-                        }}
+                        onClick={handleCheckout}
                         className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition"
                       >
                         Proceed to Checkout
@@ -518,7 +539,7 @@ export default function Home() {
                     </div>
 
                     {/* 🔹 Mobile: Sticky Bottom Summary */}
-                    <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white p-4 rounded-t-lg shadow-lg border-t-4 border-[#A65C37]">
+                    <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white p-4 rounded-t-lg shadow-lg">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <input type="checkbox" className="w-5 h-5 text-[#A65C37] border-gray-300 rounded focus:ring-2 focus:ring-[#A65C37]" defaultChecked />
@@ -528,10 +549,7 @@ export default function Home() {
                           <div className="text-xl font-bold text-gray-900">Rp{subtotal.toLocaleString('id-ID')}</div>
                         </div>
                         <button
-                          onClick={() => {
-                            const summary = document.getElementById('mobile-price-summary');
-                            summary.classList.toggle('hidden');
-                          }}
+                          onClick={() => setIsMobileSummaryOpen(true)}
                           className="ml-2 px-3 py-1 bg-[#A65C37] text-white text-xs font-medium rounded-full"
                         >
                           Lihat Detail
@@ -539,42 +557,69 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🔹 Mobile Expanded Detail — Hidden by default */}
-                    <div id="mobile-price-summary" className="md:hidden mt-20 bg-white p-4 rounded-lg shadow-sm hidden max-h-60 overflow-y-auto">
-                      <h3 className="text-sm font-medium text-gray-800 mb-3">Detail Harga</h3>
-                      <div className="space-y-3 text-xs">
-                        {cartItems.map(item => (
-                          <div key={item.id} className="border-b border-gray-100 pb-2">
-                            <div className="flex justify-between">
-                              <span>{item.nama_produk} ({item.nama_varian}) x{item.jumlah}</span>
-                              <span>Rp{item.subtotal.toLocaleString('id-ID')}</span>
+                    {/* 🔹 Mobile Expanded Detail — Tablet-style */}
+                    {isMobileSummaryOpen && (
+                      <div
+                        className="md:hidden fixed inset-x-4 bottom-24 z-50 bg-white rounded-lg shadow-2xl shadow-slate-500 border border-gray-100 overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-4 max-h-[70vh] overflow-y-auto">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-semibold text-gray-800">Ringkasan Pesanan</h3>
+                            <button
+                              onClick={() => setIsMobileSummaryOpen(false)}
+                              className="text-gray-500 hover:text-gray-700"
+                              aria-label="Tutup detail"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          <div className="space-y-3 mb-4">
+                            {cartItems.map((item) => (
+                              <div key={item.id} className="flex justify-between py-3 border-b border-gray-100 last:border-0">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-sm text-gray-900">{item.nama_produk}</span>
+                                  <span className="text-xs text-gray-600">Varian: {item.nama_varian}</span>
+                                  <span className="text-xs text-gray-500">x{item.jumlah}</span>
+                                  <span className="text-xs text-gray-500 mt-1">Harga/item: {formatRupiah(item.harga)}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="block font-medium text-sm text-[#A65C37]">
+                                    Rp{item.subtotal.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-4 border-t border-gray-200">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-700">Subtotal</span>
+                              <span className="font-medium">{formatRupiah(subtotal)}</span>
+                            </div>
+                            <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
+                              <span>Total</span>
+                              <span>{formatRupiah(total)}</span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-gray-200">
-                        <div className="flex justify-between font-bold">
-                          <span>Total</span>
-                          <span>{formatRupiah(total)}</span>
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 bg-gray-50">
+                          <button
+                            onClick={() => {
+                              setIsMobileSummaryOpen(false);
+                              handleCheckout();
+                            }}
+                            className="w-full bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-lg text-sm transition"
+                          >
+                            Buat Pesanan
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => {
-                          let message = "Halo, saya ingin memesan:\n\n";
-                          cartItems.forEach(item => {
-                            message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} - ${formatRupiah(item.harga)}\n`;
-                          });
-                          message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
-
-                          const encoded = encodeURIComponent(message);
-                          window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
-                        }}
-                        className="w-full mt-4 bg-[#A65C37] hover:bg-[#d36e3b] text-white text-xs font-medium py-2.5 rounded-full"
-                      >
-                        Buat Pesanan
-                      </button>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
