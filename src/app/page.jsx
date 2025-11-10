@@ -1,3 +1,4 @@
+// src/app/page.jsx
 'use client';
 
 import Image from 'next/image';
@@ -8,38 +9,30 @@ import { getProduk } from '../../services/productService';
 import { getVarianByProduk } from '../../services/variantService';
 
 export default function Home() {
-  const [activeView, setActiveView] = useState('home');
+  // 🔹 State navigasi
+  const [activeView, setActiveView] = useState('home'); // 'home' | 'menu' | 'cart'
   const [activeCategory, setActiveCategory] = useState('Semua');
-  const [searchQuery, setSearchQuery] = useState(''); // 🔍 tambahan
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 🔹 Data
   const [produk, setProduk] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 🔹 Modal state
+  // 🔹 Modal produk
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalVariants, setModalVariants] = useState([]);
   const [selectedVariants, setSelectedVariants] = useState({});
 
-  // ✅ Filter produk — gabungkan kategori & pencarian
-  const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
+  // 🔹 Modal gambar
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
-  const filteredProduk = produk
-    .filter(p => {
-      const matchCategory = 
-        activeCategory === 'Semua' || 
-        p.kategori?.nama_kategori === activeCategory;
-      
-      const matchSearch = 
-        !searchQuery.trim() || 
-        p.nama_produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.deskripsi && p.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      return matchCategory && matchSearch;
-    });
+  // 🔹 Keranjang
+  const [cartItems, setCartItems] = useState([]);
 
-  // ✅ Fetch produk
+  // ✅ Load data produk & keranjang
   useEffect(() => {
     const fetchProduk = async () => {
       try {
@@ -48,25 +41,38 @@ export default function Home() {
         setProduk(data);
       } catch (err) {
         console.error('Gagal fetch produk:', err);
-        setError('Gagal memuat menu. Silakan coba lagi nanti.');
+        setError('Gagal memuat menu.');
       } finally {
         setLoading(false);
       }
     };
     fetchProduk();
+
+    // Load cart dari localStorage
+    const savedCart = typeof window !== 'undefined' 
+      ? JSON.parse(localStorage.getItem('cart') || '[]') 
+      : [];
+    setCartItems(savedCart);
   }, []);
+
+  // ✅ Sinkronisasi keranjang ke localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cart', JSON.stringify(cartItems));
+    }
+  }, [cartItems]);
 
   // ✅ Switch view
   const switchView = (view) => {
-    setActiveView(view);
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
+    if (['home', 'menu', 'cart'].includes(view)) {
+      setActiveView(view);
+      setTimeout(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }, 50);
+      }, 50);
+    }
   };
 
-  // ✅ Buka modal & fetch varian
+  // ✅ Buka modal produk — tanpa alert saat error
   const openVariantModal = async (product) => {
     try {
       setModalLoading(true);
@@ -80,13 +86,12 @@ export default function Home() {
       document.body.style.overflow = 'hidden';
     } catch (err) {
       console.error('Gagal memuat varian:', err);
-      alert('Gagal memuat varian. Silakan coba lagi.');
+      // ❌ TIDAK ADA alert — hanya log ke console
     } finally {
       setModalLoading(false);
     }
   };
 
-  // ✅ Tutup modal
   const closeVariantModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
@@ -94,71 +99,124 @@ export default function Home() {
     document.body.style.overflow = '';
   };
 
-  // ✅ Update jumlah varian (+/-)
+  // ✅ Tambah ke keranjang — tanpa alert sama sekali
+  const addToCart = () => {
+    // Jika belum pilih varian: diam saja (atau Anda bisa tambahkan efek UI halus jika perlu)
+    if (Object.keys(selectedVariants).length === 0) {
+      return;
+    }
+
+    const newItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
+      const variant = modalVariants.find(v => v.id_varian == id_varian);
+      return {
+        id: `${selectedProduct.id_produk}-${id_varian}`,
+        id_produk: selectedProduct.id_produk,
+        id_varian: id_varian,
+        nama_produk: selectedProduct.nama_produk,
+        nama_varian: variant?.nama_varian,
+        url_gambar: Array.isArray(selectedProduct.url_gambar)
+          ? selectedProduct.url_gambar[0]
+          : selectedProduct.url_gambar || '/placeholder.jpg',
+        harga: variant?.harga_varian || 0,
+        jumlah: qty,
+        subtotal: (variant?.harga_varian || 0) * qty,
+      };
+    });
+
+    setCartItems(prev => [...prev, ...newItems]);
+    closeVariantModal(); // ✅ langsung tutup modal, tanpa alert
+  };
+
+  // ✅ Hitung subtotal & total
+  const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const total = subtotal; // ongkir = 0
+
+  // ✅ Format rupiah
+  const formatRupiah = (angka) => 
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+
+  // ✅ Update jumlah item di keranjang
+  const updateCartQuantity = (id, change) => {
+    setCartItems(prev =>
+      prev.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              jumlah: Math.max(1, item.jumlah + change),
+              subtotal: item.harga * Math.max(1, item.jumlah + change)
+            }
+          : item
+      ).filter(item => item.jumlah > 0)
+    );
+  };
+
+  const removeCartItem = (id) => {
+    setCartItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  // ✅ Filter produk
+  const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
+  const filteredProduk = produk.filter(p => {
+    const matchCategory = activeCategory === 'Semua' || p.kategori?.nama_kategori === activeCategory;
+    const matchSearch = !searchQuery.trim() || 
+      p.nama_produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.deskripsi && p.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchCategory && matchSearch;
+  });
+
+  // ✅ Subtotal di modal
+  const calculateModalSubtotal = () =>
+    Object.entries(selectedVariants).reduce((total, [id_varian, qty]) => {
+      const variant = modalVariants.find(v => v.id_varian == id_varian);
+      return total + (variant?.harga_varian || 0) * qty;
+    }, 0);
+
+  const totalModalItems = Object.values(selectedVariants).reduce((sum, q) => sum + q, 0);
+
+  // ✅ Update jumlah varian di modal
   const updateVariantQuantity = (id_varian, change) => {
     setSelectedVariants(prev => {
       const current = prev[id_varian] || 0;
       const newQty = Math.max(0, current + change);
+      const newState = { ...prev };
       if (newQty === 0) {
-        const newState = { ...prev };
         delete newState[id_varian];
-        return newState;
+      } else {
+        newState[id_varian] = newQty;
       }
-      return { ...prev, [id_varian]: newQty };
+      return newState;
     });
   };
 
-  // ✅ Hitung subtotal
-  const calculateSubtotal = () => {
-    return Object.entries(selectedVariants).reduce((total, [id_varian, qty]) => {
-      const variant = modalVariants.find(v => v.id_varian == id_varian);
-      return total + (variant?.harga_varian || 0) * qty;
-    }, 0);
-  };
-
-  // ✅ Total item
-  const totalItems = Object.values(selectedVariants).reduce((sum, q) => sum + q, 0);
-
   return (
     <div className="font-montserrat min-h-screen flex flex-col">
-      <NavbarTab 
-        activeView={activeView} 
-        onSwitchView={switchView} 
-      />
+      <NavbarTab activeView={activeView} onSwitchView={switchView} />
 
-      <main className="flex-grow">
-        {activeView === 'home' ? (
+      <main className="flex-grow pb-20">
+        {activeView === 'home' && (
           <>
             {/* Hero Section */}
             <section className="relative w-full h-[750px] overflow-hidden">
               <Image
                 src="/Images/BannerBackground.jpg"
-                alt="Banner Background"
+                alt="Banner"
                 fill
                 className="absolute inset-0 object-cover brightness-65"
-                style={{ filter: 'blur(3px)' }}
+                style={{ filter: 'blur(7px)' }}
                 priority
                 sizes="100vw"
               />
-              <div className="relative z-10 flex flex-col items-center justify-center h-full text-white px-4 text-center">
+              <div className="relative z-10 flex flex-col items-center justify-center text-white h-full px-4 text-center text-shadow-lg">
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
-                  Nikmati Cita Rasa<br />
-                  Dimsum Rumahan<br />
-                  dengan Rasa Premium
+                  Nikmati Cita Rasa<br />Dimsum Rumahan<br />dengan Rasa Premium
                 </h1>
-                <p className="text-lg md:text-xl mb-8 max-w-2xl">
+                <p className="text-lg md:text-xl mb-8 max-w-2xl text-shadow-lg">
                   Kami percaya rasa terbaik lahir dari sentuhan tangan dan ketulusan hati.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
-                    onClick={() => window.open('https://wa.me/6285169901919', '_blank')}
-                    className="bg-[#A65C37] hover:bg-[#d36e3b] hover:scale-103 text-white font-medium py-3 px-6 rounded-full transition cursor-pointer"
-                  >
-                    Order Sekarang
-                  </button>
-                  <button
                     onClick={() => switchView('menu')}
-                    className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-103 font-medium py-3 px-6 rounded-full transition cursor-pointer"
+                    className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-105 font-medium py-3 px-6 rounded-full cursor-pointer transition"
                   >
                     Lihat Menu
                   </button>
@@ -177,15 +235,9 @@ export default function Home() {
                     { icon: '/Icons/FindIcon.png', title: 'Resep Asli Rumahan', desc: 'Menunjukkan kehangatan dan ketulusan dalam proses pembuatan.' },
                     { icon: '/Icons/QualityIcon.png', title: 'Kualitas Terjamin, Rasa Konsisten', desc: 'Kami menjaga setiap proses agar rasa dimsum kami selalu sama.' }
                   ].map((item, i) => (
-                    <div key={i} className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:shadow-[#ffb691] transition">
+                    <div key={i} className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl">
                       <div className="w-16 h-16 mb-4 flex items-center justify-center">
-                        <Image 
-                          src={item.icon} 
-                          alt={item.title} 
-                          width={48} 
-                          height={48} 
-                          className="object-contain" 
-                        />
+                        <Image src={item.icon} alt={item.title} width={48} height={48} className="object-contain" />
                       </div>
                       <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
                       <p className="text-gray-600 text-sm">{item.desc}</p>
@@ -195,11 +247,11 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Special Menu Preview */}
+            {/* 🔹 Special Menu Preview — "Nikmati berbagai pilihan menu spesial kami" */}
             <section className="py-10 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-4xl md:text-4xl font-medium text-center text-gray-800 mb-8">
-                  Nikmati juga berbagai pilihan menu spesial kami!
+                  Nikmati berbagai pilihan menu spesial kami!
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {produk.slice(0, 4).map(item => (
@@ -222,7 +274,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* CTA */}
+            {/* 🔹 CTA — "Jelajahi beragam menu kami" */}
             <section className="py-12 px-4">
               <div className="max-w-4xl mx-auto text-center">
                 <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
@@ -235,7 +287,7 @@ export default function Home() {
                   </p>
                   <button
                     onClick={() => switchView('menu')}
-                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition"
+                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition cursor-pointer"
                   >
                     Lihat Semua Menu
                   </button>
@@ -257,26 +309,26 @@ export default function Home() {
                     allowFullScreen
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
-                    title="Lokasi Outlet Kami"
+                    title="Lokasi Outlet"
                   ></iframe>
                 </div>
               </div>
             </section>
           </>
-        ) : (
-          // 🍽️ MENU VIEW — 2 kolom + search
+        )}
+
+        {activeView === 'menu' && (
           <section className="py-12 px-4 bg-gray-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-10">
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900">Menu Kami</h1>
                 <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
-                  {loading ? 'Memuat menu...' : error ? 'Gagal memuat menu.' : 'Nikmati berbagai hidangan lezat, dibuat dengan bahan segar dan resep istimewa.'}
+                  {loading ? 'Memuat menu...' : error ? 'Gagal memuat menu.' : 'Nikmati berbagai hidangan lezat.'}
                 </p>
               </div>
 
               {!loading && !error && (
                 <div className="flex flex-col items-center gap-4 mb-8">
-                  {/* Kategori */}
                   <div className="flex flex-wrap justify-center gap-3">
                     {kategoriList.map(category => (
                       <button
@@ -285,7 +337,7 @@ export default function Home() {
                           setActiveCategory(category);
                           setSearchQuery('');
                         }}
-                        className={`px-6 py-2.5 rounded-full font-medium transition-all duration-200 ${
+                        className={`px-6 py-2.5 rounded-full font-medium ${
                           activeCategory === category
                             ? 'bg-[#A65C37] text-white shadow-md'
                             : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -296,37 +348,20 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* Search Bar */}
                   <div className="w-full max-w-md">
                     <div className="relative">
                       <input
                         type="text"
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={e => setSearchQuery(e.target.value)}
                         placeholder={`Cari di kategori "${activeCategory}"...`}
-                        className="w-full px-4 py-2.5 pl-10 pr-10 rounded-full border border-gray-300 focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none transition"
+                        className="w-full px-4 py-2.5 pl-10 pr-10 rounded-full border border-gray-300 focus:ring-2 focus:ring-[#A65C37] outline-none"
                       />
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                       {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery('')}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                          aria-label="Clear search"
-                        >
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                           ✕
                         </button>
                       )}
@@ -337,9 +372,7 @@ export default function Home() {
 
               {loading && (
                 <div className="text-center py-12">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
-                    <span className="sr-only">Loading...</span>
-                  </div>
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-r-transparent"></div>
                   <p className="mt-4 text-gray-600">Memuat menu...</p>
                 </div>
               )}
@@ -347,10 +380,7 @@ export default function Home() {
               {error && (
                 <div className="text-center py-12 text-red-500">
                   <p>{error}</p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="mt-4 px-4 py-2 bg-[#A65C37] text-white rounded-full"
-                  >
+                  <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-[#A65C37] text-white rounded-full">
                     Coba Lagi
                   </button>
                 </div>
@@ -362,7 +392,6 @@ export default function Home() {
                     const gambar = Array.isArray(item.url_gambar)
                       ? item.url_gambar[0]
                       : item.url_gambar || '/placeholder.jpg';
-
                     const isMatchSearch = searchQuery.trim() !== '' && 
                       item.nama_produk.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -374,13 +403,7 @@ export default function Home() {
                         }`}
                       >
                         <div className="relative h-48 w-full">
-                          <Image
-                            src={gambar}
-                            alt={item.nama_produk}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                          />
+                          <Image src={gambar} alt={item.nama_produk} fill className="object-cover" />
                         </div>
                         <div className="p-4">
                           <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
@@ -388,9 +411,9 @@ export default function Home() {
                           <div className="flex justify-center mt-2">
                             <button
                               onClick={() => openVariantModal(item)}
-                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition cursor-pointer"
+                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition"
                             >
-                              Lihat Varian
+                              Lihat Produk
                             </button>
                           </div>
                         </div>
@@ -405,189 +428,296 @@ export default function Home() {
                   Tidak ada menu untuk kategori dan kata kunci ini.
                 </div>
               )}
+            </div>
+          </section>
+        )}
 
-              <div className="text-center mt-10">
-                <button
-                  onClick={() => switchView('home')}
-                  className="text-[#A65C37] font-medium hover:text-[#d36e3b] flex items-center gap-2 cursor-pointer"
-                >
-                  ← Kembali ke Beranda
-                </button>
+        {activeView === 'cart' && (
+          <section className="py-8 px-4 bg-gray-50 min-h-screen">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex justify-between items-center mb-8">
+                <h1 className="text-2xl font-bold text-gray-900">Keranjang Kamu</h1>
+                <span className="text-sm text-gray-600">
+                  {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
+                </span>
               </div>
+
+              {cartItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <h3 className="text-xl font-medium text-gray-800 mb-2">Keranjangmu masih kosong</h3>
+                  <p className="text-gray-600 mb-6">Yuk tambahkan menu favoritmu!</p>
+                  <button
+                    onClick={() => switchView('menu')}
+                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition"
+                  >
+                    Lihat Menu
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 space-y-4">
+                    {cartItems.map((item) => (
+                      <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm flex items-start gap-4">
+                        <div className="w-20 h-20 flex-shrink-0 relative">
+                          <Image src={item.url_gambar} alt={item.nama_varian} fill className="object-cover rounded-md" />
+                        </div>
+                        <div className="flex-grow">
+                          <h3 className="font-semibold text-gray-900">{item.nama_produk}</h3>
+                          <p className="text-sm text-gray-600">Varian {item.nama_varian}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="font-bold text-[#A65C37]">{formatRupiah(item.harga)}</span>
+                            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-2 py-1">
+                              <button onClick={() => updateCartQuantity(item.id, -1)} className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded">
+                                −
+                              </button>
+                              <span className="text-sm font-medium w-6 text-center">{item.jumlah}</span>
+                              <button onClick={() => updateCartQuantity(item.id, 1)} className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded">
+                                +
+                              </button>
+                            </div>
+                            <button onClick={() => removeCartItem(item.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 🔹 Ringkasan Order — Desktop */}
+                  <div className="lg:col-span-1">
+                    <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm">
+                      <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Order</h2>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span>Subtotal</span>
+                          <span className="font-bold">{formatRupiah(subtotal)}</span>
+                        </div>
+                        <hr className="border-gray-200" />
+                        <div className="flex justify-between text-lg font-bold">
+                          <span>Total</span>
+                          <span>{formatRupiah(total)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          let message = "Halo, saya ingin memesan:\n\n";
+                          cartItems.forEach(item => {
+                            message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} - ${formatRupiah(item.harga)}\n`;
+                          });
+                          message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
+
+                          const encoded = encodeURIComponent(message);
+                          window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+                        }}
+                        className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition"
+                      >
+                        Proceed to Checkout
+                      </button>
+                    </div>
+
+                    {/* 🔹 Mobile: Sticky Bottom Summary */}
+                    <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white p-4 rounded-t-lg shadow-lg border-t-4 border-[#A65C37]">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" className="w-5 h-5 text-[#A65C37] border-gray-300 rounded focus:ring-2 focus:ring-[#A65C37]" defaultChecked />
+                          <span className="text-sm text-gray-800">Semua</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-bold text-gray-900">Rp{subtotal.toLocaleString('id-ID')}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const summary = document.getElementById('mobile-price-summary');
+                            summary.classList.toggle('hidden');
+                          }}
+                          className="ml-2 px-3 py-1 bg-[#A65C37] text-white text-xs font-medium rounded-full"
+                        >
+                          Lihat Detail
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 🔹 Mobile Expanded Detail — Hidden by default */}
+                    <div id="mobile-price-summary" className="md:hidden mt-20 bg-white p-4 rounded-lg shadow-sm hidden max-h-60 overflow-y-auto">
+                      <h3 className="text-sm font-medium text-gray-800 mb-3">Detail Harga</h3>
+                      <div className="space-y-3 text-xs">
+                        {cartItems.map(item => (
+                          <div key={item.id} className="border-b border-gray-100 pb-2">
+                            <div className="flex justify-between">
+                              <span>{item.nama_produk} ({item.nama_varian}) x{item.jumlah}</span>
+                              <span>Rp{item.subtotal.toLocaleString('id-ID')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-gray-200">
+                        <div className="flex justify-between font-bold">
+                          <span>Total</span>
+                          <span>{formatRupiah(total)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          let message = "Halo, saya ingin memesan:\n\n";
+                          cartItems.forEach(item => {
+                            message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} - ${formatRupiah(item.harga)}\n`;
+                          });
+                          message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
+
+                          const encoded = encodeURIComponent(message);
+                          window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+                        }}
+                        className="w-full mt-4 bg-[#A65C37] hover:bg-[#d36e3b] text-white text-xs font-medium py-2.5 rounded-full"
+                      >
+                        Buat Pesanan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}
       </main>
 
-      {/* 🔹 MODAL VARIANT */}
+      {/* 🔹 MODAL PRODUK */}
       {isModalOpen && selectedProduct && (
         <>
-          <div 
-            className="fixed inset-0 z-40 bg-opacity-10"
-            style={{
-              transition: 'opacity 0.3s ease, backdrop-filter 0.3s ease',
-              opacity: isModalOpen ? 1 : 0,
-              backdropFilter: isModalOpen ? 'blur(10px)' : 'blur(0px)',
-              WebkitBackdropFilter: isModalOpen ? 'blur(10px)' : 'blur(0px)',
-              willChange: 'opacity, backdrop-filter',
-            }}
-            onClick={closeVariantModal}
-          />
-
-          <div 
-            className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${isModalOpen ? 'opacity-100' : 'opacity-0'}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div 
-              className={`bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out ${
-                isModalOpen 
-                  ? 'translate-y-0 opacity-100 scale-100' 
-                  : 'translate-y-10 opacity-0 scale-95'
-              }`}
-              style={{ maxHeight: 'calc(100vh - 2rem)' }}
-            >
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={closeVariantModal} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-.416 1.088-.416 1.514 0L12 4.5l.169.169m-1.316 6.842a1.5 1.5 0 112.688 0 1.5 1.5 0 01-2.688 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.769 4H5.231C3.995 4 3 5.005 3 6.24v11.52c0 1.235.995 2.24 2.231 2.24h14.538c1.236 0 2.231-1.005 2.231-2.24V6.24C22 5.005 21.005 4 19.769 4z" />
                   </svg>
-                  Varian {selectedProduct.nama_produk}
+                  Detail {selectedProduct.nama_produk}
                 </h3>
-                <button
-                  onClick={closeVariantModal}
-                  className="text-gray-500 hover:text-gray-700 text-xl font-bold"
-                >
-                  ×
-                </button>
+                <button onClick={closeVariantModal} className="text-gray-500 hover:text-gray-700 text-xl font-bold">×</button>
               </div>
 
-              <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-                <h4 className="text-sm font-medium text-gray-600">
-                  {modalLoading 
-                    ? 'Memuat varian...' 
-                    : `Pilih varian (${modalVariants.length})`}
-                </h4>
-
-                {modalLoading ? (
-                  <div className="flex justify-center py-6">
-                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+              <div className="flex flex-col md:flex-row max-h-[70vh] overflow-y-auto">
+                <div className="flex-shrink-0 w-full md:w-1/2 p-4 bg-gray-50 flex flex-col items-center md:items-start">
+                  <div className="relative w-full h-64 md:h-72 mb-4">
+                    <Image
+                      src={Array.isArray(selectedProduct.url_gambar) ? selectedProduct.url_gambar[0] || '/placeholder.jpg' : selectedProduct.url_gambar || '/placeholder.jpg'}
+                      alt={selectedProduct.nama_produk}
+                      fill
+                      className="object-cover rounded-lg cursor-pointer"
+                      onClick={() => setIsImageModalOpen(true)}
+                    />
+                    <button
+                      onClick={() => setIsImageModalOpen(true)}
+                      className="absolute bottom-2 right-2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                      aria-label="Lihat gambar penuh"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
                   </div>
-                ) : modalVariants.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">Belum ada varian tersedia.</p>
-                ) : (
-                  modalVariants.map((variant) => {
-                    const qty = selectedVariants[variant.id_varian] || 0;
-                    const isSelected = qty > 0;
+                  <h4 className="text-lg font-bold mb-2">{selectedProduct.nama_produk}</h4>
+                  {selectedProduct.deskripsi && <p className="text-sm text-gray-700 text-center md:text-left mb-4">{selectedProduct.deskripsi}</p>}
+                </div>
 
-                    return (
-                      <div
-                        key={variant.id_varian}
-                        className={`p-3 rounded-lg border transition-colors ${
-                          variant.stok_varian <= 0
-                            ? 'bg-gray-100 border-gray-300 text-gray-500'
-                            : isSelected
-                              ? 'bg-[#ededed] border-[#d36e3b] shadow-sm'
-                              : 'border-gray-200 hover:bg-slate-200'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h5 className="font-medium text-gray-900">{variant.nama_varian}</h5>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Stok: {variant.stok_varian}
-                            </p>
-                          </div>
-                          <div className="text-right flex flex-col items-end gap-1">
-                            <p className="font-bold text-[#A65C37]">
-                              Rp {variant.harga_varian?.toLocaleString('id-ID')}
-                            </p>
-                            {variant.stok_varian > 0 && (
-                              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-2 py-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    updateVariantQuantity(variant.id_varian, -1);
-                                  }}
-                                  className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded cursor-pointer"
-                                >
-                                  −
-                                </button>
-                                <span className="text-sm font-medium w-6 text-center">{qty}</span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (qty < variant.stok_varian) {
-                                      updateVariantQuantity(variant.id_varian, 1);
-                                    }
-                                  }}
-                                  className={`w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 cursor-pointer rounded ${
-                                    qty >= variant.stok_varian ? 'opacity-50 cursor-not-allowed' : ''
-                                  }`}
-                                >
-                                  +
-                                </button>
+                <div className="flex-grow p-4 border-t md:border-l border-gray-200">
+                  <h5 className="text-sm font-medium text-gray-600 mb-3">
+                    {modalLoading ? 'Memuat varian...' : `Varian (${modalVariants.length})`}
+                  </h5>
+
+                  {modalLoading ? (
+                    <div className="flex justify-center py-6"><div className="inline-block h-6 w-6 animate-spin border-2 border-r-transparent"></div></div>
+                  ) : modalVariants.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">Belum ada varian tersedia.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                      {modalVariants.map(variant => {
+                        const qty = selectedVariants[variant.id_varian] || 0;
+                        return (
+                          <div key={variant.id_varian} className={`p-3 rounded-lg border ${
+                            variant.stok_varian <= 0 ? 'bg-gray-100 border-gray-300 text-gray-500' :
+                            qty > 0 ? 'bg-[#ededed] border-[#d36e3b]' : 'border-gray-200 hover:bg-slate-200'
+                          }`}>
+                            <div className="flex justify-between">
+                              <div>
+                                <h5 className="font-medium">{variant.nama_varian}</h5>
+                                <p className="text-xs text-gray-500 mt-1">Stok: {variant.stok_varian}</p>
                               </div>
-                            )}
+                              <div className="text-right">
+                                <p className="font-bold text-[#A65C37]">
+                                  Rp {variant.harga_varian?.toLocaleString('id-ID')}
+                                </p>
+                                {variant.stok_varian > 0 && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <button onClick={() => updateVariantQuantity(variant.id_varian, -1)} className="w-6 h-6 flex items-center justify-center bg-white border rounded">−</button>
+                                    <span className="w-6 text-center">{qty}</span>
+                                    <button 
+                                      onClick={() => updateVariantQuantity(variant.id_varian, 1)} 
+                                      disabled={qty >= variant.stok_varian}
+                                      className={`w-6 h-6 flex items-center justify-center bg-white border rounded ${qty >= variant.stok_varian ? 'opacity-50' : ''}`}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
 
-                {Object.keys(selectedVariants).length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-bold text-gray-900">
-                        Rp {calculateSubtotal().toLocaleString('id-ID')}
-                      </span>
+                  {totalModalItems > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between text-sm">
+                        <span>Subtotal:</span>
+                        <span className="font-bold">{formatRupiah(calculateModalSubtotal())}</span>
+                      </div>
+                      <div className="flex justify-between text-sm mt-1">
+                        <span>Total Item:</span>
+                        <span className="font-bold">{totalModalItems} item</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-600">Total Item:</span>
-                      <span className="font-bold text-gray-900">
-                        {totalItems} item
-                      </span>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               <div className="p-4 border-t border-gray-200 flex justify-center gap-3">
-                <button
-                  onClick={() => {
-                    if (totalItems === 0) {
-                      alert('⚠️ Belum ada varian yang dipilih.');
-                      return;
-                    }
-                    const cartItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
-                      const variant = modalVariants.find(v => v.id_varian == id_varian);
-                      return {
-                        id_varian,
-                        nama_varian: variant?.nama_varian,
-                        harga: variant?.harga_varian,
-                        jumlah: qty,
-                        subtotal: (variant?.harga_varian || 0) * qty
-                      };
-                    });
-                    console.log('🛒 Keranjang:', cartItems);
-                    alert(`✅ Berhasil! ${totalItems} item ditambahkan ke keranjang.\nTotal: Rp ${calculateSubtotal().toLocaleString('id-ID')}`);
-                    closeVariantModal();
-                  }}
-                  className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] cursor-pointer transition"
-                >
+                <button onClick={addToCart} className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b]">
                   Tambah Ke Keranjang
                 </button>
-                <button
-                  onClick={closeVariantModal}
-                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition cursor-pointer"
-                >
+                <button onClick={closeVariantModal} className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300">
                   Tutup
                 </button>
               </div>
             </div>
           </div>
+
+          {/* 🔹 MODAL GAMBAR */}
+          {isImageModalOpen && (
+            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90" onClick={() => setIsImageModalOpen(false)}>
+              <div className="relative max-w-[95vw] max-h-[95vh] rounded-lg bg-white" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setIsImageModalOpen(false)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white/70 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="flex items-center justify-center p-2">
+                  <Image
+                    src={Array.isArray(selectedProduct?.url_gambar) ? selectedProduct.url_gambar[0] || '/placeholder.jpg' : selectedProduct?.url_gambar || '/placeholder.jpg'}
+                    alt={selectedProduct?.nama_produk}
+                    width={800} height={600}
+                    className="max-h-[85vh] max-w-[90vw] object-contain rounded"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
