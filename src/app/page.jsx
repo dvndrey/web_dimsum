@@ -7,6 +7,7 @@ import NavbarTab from '@/components/User/NavbarTab';
 import Footer from '@/components/User/Footer';
 import { getProduk } from '../../services/productService';
 import { getVarianByProduk } from '../../services/variantService';
+import { createOrder } from '../../services/orderService'; // 👈 pastikan path benar
 
 export default function Home() {
   // 🔹 State navigasi
@@ -34,6 +35,16 @@ export default function Home() {
 
   // 🔹 Mobile price summary toggle
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
+
+  // 🔹 Modal Konfirmasi Pesanan
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [pembeliData, setPembeliData] = useState({
+    nama_pembeli: '',
+    alamat_pembeli: '',
+    nomer_pembeli: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // ✅ Load data produk & keranjang
   useEffect(() => {
@@ -187,16 +198,86 @@ export default function Home() {
     });
   };
 
-  // ✅ Kirim ke WhatsApp
-  const handleCheckout = () => {
-    let message = "Halo, saya ingin memesan:\n\n";
-    cartItems.forEach(item => {
-      message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} — @${formatRupiah(item.harga)}\n`;
+  // ✅ Buka modal konfirmasi
+  const openConfirmModal = () => {
+    setPembeliData({
+      nama_pembeli: '',
+      alamat_pembeli: '',
+      nomer_pembeli: '',
     });
-    message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
+    setFormError('');
+    setIsConfirmModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
 
-    const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+  const closeConfirmModal = () => {
+    setIsConfirmModalOpen(false);
+    document.body.style.overflow = '';
+  };
+
+  // ✅ Submit pesanan ke Supabase → lalu ke WhatsApp
+  const handleSubmitOrder = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError('');
+
+    const { nama_pembeli, alamat_pembeli, nomer_pembeli } = pembeliData;
+
+    if (!nama_pembeli.trim() || !alamat_pembeli.trim() || !nomer_pembeli.trim()) {
+      setFormError('Semua field wajib diisi.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Format nomor HP ke 62...
+    let formattedNomer = nomer_pembeli.replace(/\D/g, '');
+    if (formattedNomer.startsWith('0')) {
+      formattedNomer = '62' + formattedNomer.slice(1);
+    } else if (!formattedNomer.startsWith('62')) {
+      if (formattedNomer.length >= 10 && formattedNomer.length <= 12) {
+        formattedNomer = '62' + formattedNomer;
+      }
+    }
+
+    try {
+      // Siapkan data pesanan sesuai service
+      const orderItems = cartItems.map(item => ({
+        id_produk: item.id_produk,
+        id_varian: item.id_varian,
+        jumlah_item: item.jumlah,
+        harga_satuan: item.harga,
+      }));
+
+      // Simpan ke Supabase
+      const result = await createOrder(
+        { nama_pembeli, alamat_pembeli, nomer_pembeli: formattedNomer },
+        orderItems
+      );
+
+      // Buat pesan WhatsApp
+      let message = `Halo, saya ingin memesan:\n\n`;
+      cartItems.forEach(item => {
+        message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} — @${formatRupiah(item.harga)}\n`;
+      });
+      message += `\n`;
+      message += `Nama: ${nama_pembeli}\n`;
+      message += `No WA: ${formattedNomer}\n`;
+      message += `Alamat: ${alamat_pembeli}\n\n`;
+      message += `\nTerima kasih!`;
+
+      const encoded = encodeURIComponent(message);
+      window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+
+      // Reset keranjang & tutup modal
+      setCartItems([]);
+      closeConfirmModal();
+
+    } catch (err) {
+      console.error('Error membuat pesanan:', err);
+      setFormError('Gagal menyimpan pesanan. Coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -500,7 +581,7 @@ export default function Home() {
                     <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm">
                       <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Order</h2>
                       
-                      {/* 🔹 Detail Item List */}
+                      {/* Detail */}
                       <div className="space-y-3 mb-4">
                         {cartItems.map(item => (
                           <div key={item.id} className="flex justify-between py-2 border-b border-gray-100">
@@ -517,10 +598,10 @@ export default function Home() {
                         ))}
                       </div>
 
-                      {/* 🔹 Summary Totals */}
+                      {/* Summary */}
                       <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex justify-between">
-                          <span>Subtotal (Semua Item)</span>
+                          <span>Subtotal</span>
                           <span className="font-bold">{formatRupiah(subtotal)}</span>
                         </div>
                         <hr className="border-gray-200" />
@@ -530,8 +611,9 @@ export default function Home() {
                         </div>
                       </div>
 
+                      {/* ✅ Ganti ke openConfirmModal */}
                       <button
-                        onClick={handleCheckout}
+                        onClick={openConfirmModal}
                         className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition"
                       >
                         Proceed to Checkout
@@ -560,7 +642,7 @@ export default function Home() {
                     {/* 🔹 Mobile Expanded Detail — Tablet-style */}
                     {isMobileSummaryOpen && (
                       <div
-                        className="md:hidden fixed inset-x-4 bottom-24 z-50 bg-white rounded-lg shadow-2xl shadow-slate-500 border border-gray-100 overflow-hidden"
+                        className="md:hidden fixed inset-x-4 bottom-24 z-50 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="p-4 max-h-[70vh] overflow-y-auto">
@@ -611,7 +693,7 @@ export default function Home() {
                           <button
                             onClick={() => {
                               setIsMobileSummaryOpen(false);
-                              handleCheckout();
+                              openConfirmModal();
                             }}
                             className="w-full bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-lg text-sm transition"
                           >
@@ -763,6 +845,125 @@ export default function Home() {
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {/* 🔹 MODAL KONFIRMASI PESANAN */}
+      {isConfirmModalOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-50 bg-black/40" 
+            onClick={closeConfirmModal}
+          />
+          <div 
+            className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-xl">
+              <div className="p-5 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-800">Konfirmasi Pesanan</h3>
+                <button 
+                  onClick={closeConfirmModal}
+                  className="text-gray-500 hover:text-gray-700 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100"
+                  aria-label="Tutup"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitOrder} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                {formError && (
+                  <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
+                    {formError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nama Lengkap *
+                  </label>
+                  <input
+                    type="text"
+                    value={pembeliData.nama_pembeli}
+                    onChange={e => setPembeliData(prev => ({ ...prev, nama_pembeli: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none"
+                    placeholder="Contoh: Budi Santoso"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nomor WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    value={pembeliData.nomer_pembeli}
+                    onChange={e => setPembeliData(prev => ({ ...prev, nomer_pembeli: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none"
+                    placeholder="Contoh: 081234567890"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Pastikan nomor aktif & terdaftar di WhatsApp.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Alamat Lengkap *
+                  </label>
+                  <textarea
+                    value={pembeliData.alamat_pembeli}
+                    onChange={e => setPembeliData(prev => ({ ...prev, alamat_pembeli: e.target.value }))}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none resize-none"
+                    placeholder="Contoh: Jl. Merdeka No. 45, RT 02/RW 03, Kel. Sukamaju, Kec. Kota Baru"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Termasuk nama jalan, RT/RW, kelurahan, kecamatan, dan kota.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                  <p className="font-medium text-gray-800 mb-1">Pesanan Anda:</p>
+                  <ul className="space-y-1">
+                    {cartItems.map(item => (
+                      <li key={item.id} className="text-gray-700">
+                        • {item.nama_produk} ({item.nama_varian}) ×{item.jumlah}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 font-bold text-[#A65C37]">
+                    Total: {formatRupiah(total)}
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`w-full py-3 px-4 rounded-lg font-medium text-white transition ${
+                    isSubmitting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-[#A65C37] hover:bg-[#d36e3b]'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Memproses...
+                    </span>
+                  ) : (
+                    'Konfirmasi Pesanan'
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
         </>
       )}
 
