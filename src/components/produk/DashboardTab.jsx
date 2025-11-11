@@ -4,11 +4,12 @@ import { getDashboardSummary } from "../../../services/orderService";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, TrendingUp, Clock, CheckCircle, Truck } from "lucide-react";
+import { X, Package, TrendingUp, Clock, CheckCircle, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const STATUS_CONFIG = {
   pending: { label: "Menunggu", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  dibatalkan: { label: "Dibatalkan", color: "bg-red-100 text-red-800", icon: X },
   diproses: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: Package },
   dikirim: { label: "Dikirim", color: "bg-purple-100 text-purple-800", icon: Truck },
   selesai: { label: "Selesai", color: "bg-green-100 text-green-800", icon: CheckCircle },

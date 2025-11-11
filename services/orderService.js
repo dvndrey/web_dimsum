@@ -98,7 +98,6 @@ export async function updateOrderStatus(id_pesanan, status) {
 }
 
 export async function getDashboardSummary() {
-  // Ambil semua pesanan untuk hitung total & pemasukan
   const { data: orders, error } = await supabase
     .from("pesanan")
     .select(`
@@ -119,9 +118,15 @@ export async function getDashboardSummary() {
 
   if (error) throw error;
 
-  const totalOrders = orders.length;
-  const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.total_harga) || 0), 0);
-  const recentOrders = orders.slice(0, 5); // 5 terbaru
+  // Filter hanya status yang dihitung
+  const validStatus = ["diproses", "dikirim", "selesai"];
+  const filteredOrders = orders.filter(order => validStatus.includes(order.status_pesanan));
+
+  // Hitung summary
+  const totalOrders = filteredOrders.length;
+  const totalRevenue = filteredOrders.reduce((sum, order) => sum + (Number(order.total_harga) || 0), 0);
+
+  const recentOrders = orders.slice(0, 5); // tetap ambil 5 terbaru untuk list
 
   return { totalOrders, totalRevenue, recentOrders };
 }
