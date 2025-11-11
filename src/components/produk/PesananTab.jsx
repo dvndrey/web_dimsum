@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { getOrders, updateOrderStatus } from "../../../services/orderService";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { getOrderSummary } from "../../../services/orderService";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -73,6 +76,11 @@ function formatUTCtoDateOnly(utcDateString) {
 
 export default function PesananTab() {
   const [orders, setOrders] = useState([]);
+  const [orderSummary, setOrderSummary] = useState({
+    totalSuccess: 0,
+    totalFailed: 0
+  });
+  
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -92,7 +100,20 @@ export default function PesananTab() {
     return matchesStatus && matchesSearch;
   });
 
+  async function loadOrderSummary() {
+    try {
+      const data = await getOrderSummary();
+      setOrderSummary(data);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Gagal mendapatkan Order Summary");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
+    loadOrderSummary();
     loadOrders();
   }, []);
 
@@ -131,6 +152,35 @@ export default function PesananTab() {
   return (
     <div>
       {/* Header */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-15">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Pesanan Yang Berhasil</CardTitle>
+            <Package className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "..." : orderSummary.totalSuccess}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Semua pesanan sejak awal</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Pesanan Yang Gagal/Menunggu</CardTitle>
+            <Package className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "..." : orderSummary.totalFailed}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Semua pesanan sejak awal</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="space-y-4 sm:flex sm:justify-between sm:items-center sm:space-y-0 mb-4">
         {/* Total Pesanan */}
         <p className="text-sm text-gray-500">Total Pesanan: {orders.length} pesanan</p>
