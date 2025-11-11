@@ -7,6 +7,7 @@ import NavbarTab from '@/components/User/NavbarTab';
 import Footer from '@/components/User/Footer';
 import { getProduk } from '../../services/productService';
 import { getVarianByProduk } from '../../services/variantService';
+import { createOrder } from '../../services/orderService'; // 👈 pastikan path benar
 
 export default function Home() {
   // 🔹 State navigasi
@@ -31,6 +32,19 @@ export default function Home() {
 
   // 🔹 Keranjang
   const [cartItems, setCartItems] = useState([]);
+
+  // 🔹 Mobile price summary toggle
+  const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
+
+  // 🔹 Modal Konfirmasi Pesanan
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [pembeliData, setPembeliData] = useState({
+    nama_pembeli: '',
+    alamat_pembeli: '',
+    nomer_pembeli: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // ✅ Load data produk & keranjang
   useEffect(() => {
@@ -86,7 +100,6 @@ export default function Home() {
       document.body.style.overflow = 'hidden';
     } catch (err) {
       console.error('Gagal memuat varian:', err);
-      // ❌ TIDAK ADA alert — hanya log ke console
     } finally {
       setModalLoading(false);
     }
@@ -101,10 +114,7 @@ export default function Home() {
 
   // ✅ Tambah ke keranjang — tanpa alert sama sekali
   const addToCart = () => {
-    // Jika belum pilih varian: diam saja (atau Anda bisa tambahkan efek UI halus jika perlu)
-    if (Object.keys(selectedVariants).length === 0) {
-      return;
-    }
+    if (Object.keys(selectedVariants).length === 0) return;
 
     const newItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
@@ -124,7 +134,7 @@ export default function Home() {
     });
 
     setCartItems(prev => [...prev, ...newItems]);
-    closeVariantModal(); // ✅ langsung tutup modal, tanpa alert
+    closeVariantModal();
   };
 
   // ✅ Hitung subtotal & total
@@ -188,6 +198,88 @@ export default function Home() {
     });
   };
 
+  // ✅ Buka modal konfirmasi
+  const openConfirmModal = () => {
+    setPembeliData({
+      nama_pembeli: '',
+      alamat_pembeli: '',
+      nomer_pembeli: '',
+    });
+    setFormError('');
+    setIsConfirmModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeConfirmModal = () => {
+    setIsConfirmModalOpen(false);
+    document.body.style.overflow = '';
+  };
+
+  // ✅ Submit pesanan ke Supabase → lalu ke WhatsApp
+  const handleSubmitOrder = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError('');
+
+    const { nama_pembeli, alamat_pembeli, nomer_pembeli } = pembeliData;
+
+    if (!nama_pembeli.trim() || !alamat_pembeli.trim() || !nomer_pembeli.trim()) {
+      setFormError('Semua field wajib diisi.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Format nomor HP ke 62...
+    let formattedNomer = nomer_pembeli.replace(/\D/g, '');
+    if (formattedNomer.startsWith('0')) {
+      formattedNomer = '62' + formattedNomer.slice(1);
+    } else if (!formattedNomer.startsWith('62')) {
+      if (formattedNomer.length >= 10 && formattedNomer.length <= 12) {
+        formattedNomer = '62' + formattedNomer;
+      }
+    }
+
+    try {
+      // Siapkan data pesanan sesuai service
+      const orderItems = cartItems.map(item => ({
+        id_produk: item.id_produk,
+        id_varian: item.id_varian,
+        jumlah_item: item.jumlah,
+        harga_satuan: item.harga,
+      }));
+
+      // Simpan ke Supabase
+      const result = await createOrder(
+        { nama_pembeli, alamat_pembeli, nomer_pembeli: formattedNomer },
+        orderItems
+      );
+
+      // Buat pesan WhatsApp
+      let message = `Halo, saya ingin memesan:\n\n`;
+      cartItems.forEach(item => {
+        message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} — @${formatRupiah(item.harga)}\n`;
+      });
+      message += `\n`;
+      message += `Nama: ${nama_pembeli}\n`;
+      message += `No WA: ${formattedNomer}\n`;
+      message += `Alamat: ${alamat_pembeli}\n\n`;
+      message += `\nTerima kasih!`;
+
+      const encoded = encodeURIComponent(message);
+      window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+
+      // Reset keranjang & tutup modal
+      setCartItems([]);
+      closeConfirmModal();
+
+    } catch (err) {
+      console.error('Error membuat pesanan:', err);
+      setFormError('Gagal menyimpan pesanan. Coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="font-montserrat min-h-screen flex flex-col">
       <NavbarTab activeView={activeView} onSwitchView={switchView} />
@@ -247,7 +339,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 🔹 Special Menu Preview — "Nikmati berbagai pilihan menu spesial kami" */}
+            {/* 🔹 Special Menu Preview */}
             <section className="py-10 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-4xl md:text-4xl font-medium text-center text-gray-800 mb-8">
@@ -274,7 +366,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 🔹 CTA — "Jelajahi beragam menu kami" */}
+            {/* 🔹 CTA */}
             <section className="py-12 px-4">
               <div className="max-w-4xl mx-auto text-center">
                 <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
@@ -488,7 +580,26 @@ export default function Home() {
                   <div className="lg:col-span-1">
                     <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm">
                       <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Order</h2>
-                      <div className="space-y-3">
+                      
+                      {/* Detail */}
+                      <div className="space-y-3 mb-4">
+                        {cartItems.map(item => (
+                          <div key={item.id} className="flex justify-between py-2 border-b border-gray-100">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{item.nama_produk}</span>
+                              <span className="text-sm text-gray-600">Varian: {item.nama_varian}</span>
+                              <span className="text-sm text-gray-600">Jumlah: x{item.jumlah}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="block">Harga/item: {formatRupiah(item.harga)}</span>
+                              <span className="font-bold">Subtotal: {formatRupiah(item.subtotal)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Summary */}
+                      <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex justify-between">
                           <span>Subtotal</span>
                           <span className="font-bold">{formatRupiah(subtotal)}</span>
@@ -500,17 +611,9 @@ export default function Home() {
                         </div>
                       </div>
 
+                      {/* ✅ Ganti ke openConfirmModal */}
                       <button
-                        onClick={() => {
-                          let message = "Halo, saya ingin memesan:\n\n";
-                          cartItems.forEach(item => {
-                            message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} - ${formatRupiah(item.harga)}\n`;
-                          });
-                          message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
-
-                          const encoded = encodeURIComponent(message);
-                          window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
-                        }}
+                        onClick={openConfirmModal}
                         className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition"
                       >
                         Proceed to Checkout
@@ -518,7 +621,7 @@ export default function Home() {
                     </div>
 
                     {/* 🔹 Mobile: Sticky Bottom Summary */}
-                    <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white p-4 rounded-t-lg shadow-lg border-t-4 border-[#A65C37]">
+                    <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white p-4 rounded-t-lg shadow-lg">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <input type="checkbox" className="w-5 h-5 text-[#A65C37] border-gray-300 rounded focus:ring-2 focus:ring-[#A65C37]" defaultChecked />
@@ -528,10 +631,7 @@ export default function Home() {
                           <div className="text-xl font-bold text-gray-900">Rp{subtotal.toLocaleString('id-ID')}</div>
                         </div>
                         <button
-                          onClick={() => {
-                            const summary = document.getElementById('mobile-price-summary');
-                            summary.classList.toggle('hidden');
-                          }}
+                          onClick={() => setIsMobileSummaryOpen(true)}
                           className="ml-2 px-3 py-1 bg-[#A65C37] text-white text-xs font-medium rounded-full"
                         >
                           Lihat Detail
@@ -539,42 +639,69 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🔹 Mobile Expanded Detail — Hidden by default */}
-                    <div id="mobile-price-summary" className="md:hidden mt-20 bg-white p-4 rounded-lg shadow-sm hidden max-h-60 overflow-y-auto">
-                      <h3 className="text-sm font-medium text-gray-800 mb-3">Detail Harga</h3>
-                      <div className="space-y-3 text-xs">
-                        {cartItems.map(item => (
-                          <div key={item.id} className="border-b border-gray-100 pb-2">
-                            <div className="flex justify-between">
-                              <span>{item.nama_produk} ({item.nama_varian}) x{item.jumlah}</span>
-                              <span>Rp{item.subtotal.toLocaleString('id-ID')}</span>
+                    {/* 🔹 Mobile Expanded Detail — Tablet-style */}
+                    {isMobileSummaryOpen && (
+                      <div
+                        className="md:hidden fixed inset-x-4 bottom-24 z-50 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-4 max-h-[70vh] overflow-y-auto">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-semibold text-gray-800">Ringkasan Pesanan</h3>
+                            <button
+                              onClick={() => setIsMobileSummaryOpen(false)}
+                              className="text-gray-500 hover:text-gray-700"
+                              aria-label="Tutup detail"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          <div className="space-y-3 mb-4">
+                            {cartItems.map((item) => (
+                              <div key={item.id} className="flex justify-between py-3 border-b border-gray-100 last:border-0">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-sm text-gray-900">{item.nama_produk}</span>
+                                  <span className="text-xs text-gray-600">Varian: {item.nama_varian}</span>
+                                  <span className="text-xs text-gray-500">x{item.jumlah}</span>
+                                  <span className="text-xs text-gray-500 mt-1">Harga/item: {formatRupiah(item.harga)}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="block font-medium text-sm text-[#A65C37]">
+                                    Rp{item.subtotal.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-4 border-t border-gray-200">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-700">Subtotal</span>
+                              <span className="font-medium">{formatRupiah(subtotal)}</span>
+                            </div>
+                            <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
+                              <span>Total</span>
+                              <span>{formatRupiah(total)}</span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-gray-200">
-                        <div className="flex justify-between font-bold">
-                          <span>Total</span>
-                          <span>{formatRupiah(total)}</span>
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 bg-gray-50">
+                          <button
+                            onClick={() => {
+                              setIsMobileSummaryOpen(false);
+                              openConfirmModal();
+                            }}
+                            className="w-full bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-lg text-sm transition"
+                          >
+                            Buat Pesanan
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => {
-                          let message = "Halo, saya ingin memesan:\n\n";
-                          cartItems.forEach(item => {
-                            message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} - ${formatRupiah(item.harga)}\n`;
-                          });
-                          message += `\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
-
-                          const encoded = encodeURIComponent(message);
-                          window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
-                        }}
-                        className="w-full mt-4 bg-[#A65C37] hover:bg-[#d36e3b] text-white text-xs font-medium py-2.5 rounded-full"
-                      >
-                        Buat Pesanan
-                      </button>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -718,6 +845,125 @@ export default function Home() {
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {/* 🔹 MODAL KONFIRMASI PESANAN */}
+      {isConfirmModalOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-50 bg-black/40" 
+            onClick={closeConfirmModal}
+          />
+          <div 
+            className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-xl">
+              <div className="p-5 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-800">Konfirmasi Pesanan</h3>
+                <button 
+                  onClick={closeConfirmModal}
+                  className="text-gray-500 hover:text-gray-700 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100"
+                  aria-label="Tutup"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitOrder} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                {formError && (
+                  <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
+                    {formError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nama Lengkap *
+                  </label>
+                  <input
+                    type="text"
+                    value={pembeliData.nama_pembeli}
+                    onChange={e => setPembeliData(prev => ({ ...prev, nama_pembeli: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none"
+                    placeholder="Contoh: Budi Santoso"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nomor WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    value={pembeliData.nomer_pembeli}
+                    onChange={e => setPembeliData(prev => ({ ...prev, nomer_pembeli: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none"
+                    placeholder="Contoh: 081234567890"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Pastikan nomor aktif & terdaftar di WhatsApp.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Alamat Lengkap *
+                  </label>
+                  <textarea
+                    value={pembeliData.alamat_pembeli}
+                    onChange={e => setPembeliData(prev => ({ ...prev, alamat_pembeli: e.target.value }))}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none resize-none"
+                    placeholder="Contoh: Jl. Merdeka No. 45, RT 02/RW 03, Kel. Sukamaju, Kec. Kota Baru"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Termasuk nama jalan, RT/RW, kelurahan, kecamatan, dan kota.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                  <p className="font-medium text-gray-800 mb-1">Pesanan Anda:</p>
+                  <ul className="space-y-1">
+                    {cartItems.map(item => (
+                      <li key={item.id} className="text-gray-700">
+                        • {item.nama_produk} ({item.nama_varian}) ×{item.jumlah}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 font-bold text-[#A65C37]">
+                    Total: {formatRupiah(total)}
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`w-full py-3 px-4 rounded-lg font-medium text-white transition ${
+                    isSubmitting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-[#A65C37] hover:bg-[#d36e3b]'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Memproses...
+                    </span>
+                  ) : (
+                    'Konfirmasi Pesanan'
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
         </>
       )}
 
