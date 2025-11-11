@@ -97,6 +97,39 @@ export async function updateOrderStatus(id_pesanan, status) {
   if (error) throw error;
 }
 
+export async function getOrderSummary() {
+  const { data: orders, error } = await supabase
+    .from("pesanan")
+    .select(`
+      id_pesanan,
+      status_pesanan,
+      total_harga,
+      dibuat_pada,
+      pembeli!inner(nama_pembeli, alamat_pembeli, nomer_pembeli),
+      pesanan_item!inner(
+        jumlah_item,
+        harga_satuan,
+        subtotal_item,
+        produk!inner(nama_produk),
+        varian!inner(nama_varian)
+      )
+    `)
+    .order("dibuat_pada", { ascending: false });
+
+  if (error) throw error;
+
+  const successStatus = ["diproses", "dikirim", "selesai"];
+  const failedStatus = ["pending", "dibatalkan"];
+
+  const filterSuccess = orders.filter(order => successStatus.includes(order.status_pesanan));
+  const filterFailed = orders.filter(order => failedStatus.includes(order.status_pesanan));
+
+  const totalSuccess = filterSuccess.length;
+  const totalFailed = filterFailed.length;
+
+  return { totalSuccess, totalFailed };
+}
+
 export async function getDashboardSummary() {
   const { data: orders, error } = await supabase
     .from("pesanan")
