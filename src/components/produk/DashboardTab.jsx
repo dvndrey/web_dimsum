@@ -78,7 +78,7 @@ export default function DashboardTab({ onViewAllOrders }) {
                 ? "..."
                 : `Rp${Number(summary.totalRevenue).toLocaleString("id-ID")}`}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Dari semua pesanan yang masuk</p>
+            <p className="text-xs text-gray-500 mt-1">Dari semua pesanan yang berhasil</p>
           </CardContent>
         </Card>
       </div>
