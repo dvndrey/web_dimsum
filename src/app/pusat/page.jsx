@@ -123,19 +123,6 @@ export default function AdminPage() {
             </div>
           </main>
         </div>
-
-        {/* Enhanced Toaster */}
-        <Toaster 
-          position="top-right" 
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: darkMode ? 'rgb(30 41 59)' : 'white',
-              border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-              color: darkMode ? '#f3f4f6' : '#374151',
-            },
-          }}
-        />
       </div>
     </SidebarProvider>
   );
