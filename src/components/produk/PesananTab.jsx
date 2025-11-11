@@ -222,7 +222,7 @@ export default function PesananTab() {
             size="sm"
             onClick={loadOrders}
             disabled={loading}
-            className="flex items-center gap-2 w-full sm:w-auto bg-[#A65C37] text-white hover:bg-[#7f4629]"
+            className="flex items-center gap-2 w-full sm:w-auto bg-[#A65C37] text-white hover:text-white hover:bg-[#7f4629]"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
