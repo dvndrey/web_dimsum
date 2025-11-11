@@ -23,6 +23,7 @@ import {
 
 // Icons
 import {
+  X,
   Package,
   Clock,
   Truck,
@@ -34,6 +35,7 @@ import {
 
 const STATUS_CONFIG = {
   pending: { label: "Menunggu", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  dibatalkan: { label: "Dibatalkan", color: "bg-red-100 text-red-800", icon: X },
   diproses: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: Package },
   dikirim: { label: "Dikirim", color: "bg-purple-100 text-purple-800", icon: Truck },
   selesai: { label: "Selesai", color: "bg-green-100 text-green-800", icon: CheckCircle },
@@ -41,6 +43,7 @@ const STATUS_CONFIG = {
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Menunggu" },
+  { value: "dibatalkan", label: "Dibatalkan" },
   { value: "diproses", label: "Diproses" },
   { value: "dikirim", label: "Dikirim" },
   { value: "selesai", label: "Selesai" },
