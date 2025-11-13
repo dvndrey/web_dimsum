@@ -1,17 +1,28 @@
-// src/app/page.jsx
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import NavbarTab from '@/components/User/NavbarTab';
 import Footer from '@/components/User/Footer';
 import { getProduk } from '../../services/productService';
 import { getVarianByProduk } from '../../services/variantService';
-import { createOrder } from '../../services/orderService'; // 👈 pastikan path benar
+import { createOrder } from '../../services/orderService';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getOwnerData } from '../../services/ownService';
+
+// 🔹 Cache untuk data varian
+const variantCache = new Map();
 
 export default function Home() {
   // 🔹 State navigasi
-  const [activeView, setActiveView] = useState('home'); // 'home' | 'menu' | 'cart'
+  const [activeView, setActiveView] = useState('home');
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -42,9 +53,14 @@ export default function Home() {
     nama_pembeli: '',
     alamat_pembeli: '',
     nomer_pembeli: '',
+    metode_pengambilan: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // ✅ Format rupiah dengan useMemo
+  const formatRupiah = useCallback((angka) => 
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka), []);
 
   // ✅ Load data produk & keranjang
   useEffect(() => {
@@ -53,13 +69,24 @@ export default function Home() {
         setLoading(true);
         const data = await getProduk();
         setProduk(data);
+        
+        // 🔹 Prefetch varian untuk produk pertama (optimasi)
+        if (data.length > 0) {
+          data.slice(0, 3).forEach(product => {
+            getVarianByProduk(product.id_produk).then(variants => {
+              variantCache.set(product.id_produk, variants);
+            });
+          });
+        }
       } catch (err) {
         console.error('Gagal fetch produk:', err);
         setError('Gagal memuat menu.');
+        toast.error('Gagal memuat menu');
       } finally {
         setLoading(false);
       }
     };
+
     fetchProduk();
 
     // Load cart dari localStorage
@@ -76,45 +103,61 @@ export default function Home() {
     }
   }, [cartItems]);
 
-  // ✅ Switch view
-  const switchView = (view) => {
+  // ✅ Switch view dengan useCallback
+  const switchView = useCallback((view) => {
     if (['home', 'menu', 'cart'].includes(view)) {
       setActiveView(view);
+      // Reset mobile summary ketika pindah view
+      setIsMobileSummaryOpen(false);
       setTimeout(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 50);
     }
-  };
+  }, []);
 
-  // ✅ Buka modal produk — tanpa alert saat error
-  const openVariantModal = async (product) => {
+  // ✅ Buka modal produk - OPTIMIZED: gunakan cache
+  const openVariantModal = useCallback(async (product) => {
     try {
       setModalLoading(true);
       setSelectedProduct(product);
       setSelectedVariants({});
 
+      // Cek cache dulu
+      const cachedVariants = variantCache.get(product.id_produk);
+      
+      if (cachedVariants) {
+        setModalVariants(cachedVariants);
+        setIsModalOpen(true);
+        setModalLoading(false);
+        return;
+      }
+
+      // Jika tidak ada di cache, fetch baru
       const variants = await getVarianByProduk(product.id_produk);
+      variantCache.set(product.id_produk, variants); // Simpan ke cache
       setModalVariants(variants);
 
       setIsModalOpen(true);
-      document.body.style.overflow = 'hidden';
     } catch (err) {
       console.error('Gagal memuat varian:', err);
+      toast.error('Gagal memuat varian produk');
     } finally {
       setModalLoading(false);
     }
-  };
+  }, []);
 
-  const closeVariantModal = () => {
+  const closeVariantModal = useCallback(() => {
     setIsModalOpen(false);
     setSelectedProduct(null);
     setSelectedVariants({});
-    document.body.style.overflow = '';
-  };
+  }, []);
 
-  // ✅ Tambah ke keranjang — tanpa alert sama sekali
-  const addToCart = () => {
-    if (Object.keys(selectedVariants).length === 0) return;
+  // ✅ Tambah ke keranjang dengan toast
+  const addToCart = useCallback(() => {
+    if (Object.keys(selectedVariants).length === 0) {
+      toast.error('Pilih varian terlebih dahulu');
+      return;
+    }
 
     const newItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
@@ -134,19 +177,24 @@ export default function Home() {
     });
 
     setCartItems(prev => [...prev, ...newItems]);
+    
+    const totalItems = newItems.reduce((sum, item) => sum + item.jumlah, 0);
+    toast.success(`${totalItems} item berhasil ditambahkan ke keranjang`);
+    
     closeVariantModal();
-  };
+  }, [selectedVariants, modalVariants, selectedProduct, closeVariantModal]);
 
-  // ✅ Hitung subtotal & total
-  const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const total = subtotal; // ongkir = 0
-
-  // ✅ Format rupiah
-  const formatRupiah = (angka) => 
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+  // ✅ Hitung subtotal & total dengan useMemo
+  const { subtotal, total } = useMemo(() => {
+    const subtotalValue = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+    return {
+      subtotal: subtotalValue,
+      total: subtotalValue
+    };
+  }, [cartItems]);
 
   // ✅ Update jumlah item di keranjang
-  const updateCartQuantity = (id, change) => {
+  const updateCartQuantity = useCallback((id, change) => {
     setCartItems(prev =>
       prev.map(item =>
         item.id === id
@@ -158,33 +206,42 @@ export default function Home() {
           : item
       ).filter(item => item.jumlah > 0)
     );
-  };
+  }, []);
 
-  const removeCartItem = (id) => {
+  const removeCartItem = useCallback((id) => {
     setCartItems(prev => prev.filter(item => item.id !== id));
-  };
+    toast.success('Item dihapus dari keranjang');
+  }, []);
 
-  // ✅ Filter produk
-  const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
-  const filteredProduk = produk.filter(p => {
-    const matchCategory = activeCategory === 'Semua' || p.kategori?.nama_kategori === activeCategory;
-    const matchSearch = !searchQuery.trim() || 
-      p.nama_produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.deskripsi && p.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchCategory && matchSearch;
-  });
+  // ✅ Filter produk dengan useMemo
+  const { kategoriList, filteredProduk } = useMemo(() => {
+    const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
+    
+    const filteredProduk = produk.filter(p => {
+      const matchCategory = activeCategory === 'Semua' || p.kategori?.nama_kategori === activeCategory;
+      const matchSearch = !searchQuery.trim() || 
+        p.nama_produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.deskripsi && p.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchCategory && matchSearch;
+    });
+
+    return { kategoriList, filteredProduk };
+  }, [produk, activeCategory, searchQuery]);
 
   // ✅ Subtotal di modal
-  const calculateModalSubtotal = () =>
-    Object.entries(selectedVariants).reduce((total, [id_varian, qty]) => {
+  const { modalSubtotal, totalModalItems } = useMemo(() => {
+    const modalSubtotal = Object.entries(selectedVariants).reduce((total, [id_varian, qty]) => {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
       return total + (variant?.harga_varian || 0) * qty;
     }, 0);
-
-  const totalModalItems = Object.values(selectedVariants).reduce((sum, q) => sum + q, 0);
+    
+    const totalModalItems = Object.values(selectedVariants).reduce((sum, q) => sum + q, 0);
+    
+    return { modalSubtotal, totalModalItems };
+  }, [selectedVariants, modalVariants]);
 
   // ✅ Update jumlah varian di modal
-  const updateVariantQuantity = (id_varian, change) => {
+  const updateVariantQuantity = useCallback((id_varian, change) => {
     setSelectedVariants(prev => {
       const current = prev[id_varian] || 0;
       const newQty = Math.max(0, current + change);
@@ -196,40 +253,62 @@ export default function Home() {
       }
       return newState;
     });
-  };
+  }, []);
 
   // ✅ Buka modal konfirmasi
-  const openConfirmModal = () => {
+  const openConfirmModal = useCallback(() => {
+    if (cartItems.length === 0) {
+      toast.error('Keranjang masih kosong');
+      return;
+    }
+    
+    // Tutup mobile summary jika terbuka
+    setIsMobileSummaryOpen(false);
+    
     setPembeliData({
       nama_pembeli: '',
       alamat_pembeli: '',
       nomer_pembeli: '',
+      metode_pengambilan: ''
     });
     setFormError('');
     setIsConfirmModalOpen(true);
-    document.body.style.overflow = 'hidden';
-  };
+  }, [cartItems.length]);
 
-  const closeConfirmModal = () => {
+  const closeConfirmModal = useCallback(() => {
     setIsConfirmModalOpen(false);
-    document.body.style.overflow = '';
-  };
+  }, []);
 
-  // ✅ Submit pesanan ke Supabase → lalu ke WhatsApp
+  // ✅ Mobile Summary Handlers
+  const openMobileSummary = useCallback((e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setIsMobileSummaryOpen(true);
+  }, []);
+
+  const closeMobileSummary = useCallback((e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setIsMobileSummaryOpen(false);
+  }, []);
+
+  // ✅ Handle submit order
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setFormError('');
 
-    const { nama_pembeli, alamat_pembeli, nomer_pembeli } = pembeliData;
+    const { nama_pembeli, alamat_pembeli, nomer_pembeli, metode_pengambilan } = pembeliData;
 
-    if (!nama_pembeli.trim() || !alamat_pembeli.trim() || !nomer_pembeli.trim()) {
+    if (!nama_pembeli.trim() || !alamat_pembeli.trim() || !nomer_pembeli.trim() || !metode_pengambilan) {
       setFormError('Semua field wajib diisi.');
       setIsSubmitting(false);
+      toast.error('Harap isi semua field yang wajib');
       return;
     }
 
-    // Format nomor HP ke 62...
     let formattedNomer = nomer_pembeli.replace(/\D/g, '');
     if (formattedNomer.startsWith('0')) {
       formattedNomer = '62' + formattedNomer.slice(1);
@@ -240,7 +319,13 @@ export default function Home() {
     }
 
     try {
-      // Siapkan data pesanan sesuai service
+      const owner = await getOwnerData();
+      const ownerPhone = owner?.no_hp || '+6285169901919';
+
+      const formattedOwnerPhone = ownerPhone
+        .replace(/[^0-9+]/g, '')
+        .replace(/^0/, '+62')
+
       const orderItems = cartItems.map(item => ({
         id_produk: item.id_produk,
         id_varian: item.id_varian,
@@ -248,33 +333,36 @@ export default function Home() {
         harga_satuan: item.harga,
       }));
 
-      // Simpan ke Supabase
       const result = await createOrder(
         { nama_pembeli, alamat_pembeli, nomer_pembeli: formattedNomer },
         orderItems
       );
 
-      // Buat pesan WhatsApp
-      let message = `Halo, saya ingin memesan:\n\n`;
-      cartItems.forEach(item => {
-        message += `• ${item.nama_produk} (${item.nama_varian}) x${item.jumlah} — @${formatRupiah(item.harga)}\n`;
-      });
-      message += `\n`;
-      message += `Nama: ${nama_pembeli}\n`;
-      message += `No WA: ${formattedNomer}\n`;
-      message += `Alamat: ${alamat_pembeli}\n\n`;
-      message += `\nTerima kasih!`;
+      toast.success('Pesanan berhasil dibuat, membuka WhatsApp...');
 
-      const encoded = encodeURIComponent(message);
-      window.open(`https://wa.me/6285169901919?text=${encoded}`, '_blank');
+      let message = `Hai kak! Saya ingin memesan produk berikut:\n\n`
 
-      // Reset keranjang & tutup modal
+      cartItems.forEach((item) => {
+        message += `• ${item.nama_produk} (${item.nama_varian}) ×${item.jumlah}\n`
+      })
+
+      message += `\n`
+      message += `\n`
+      message += `Nama: ${nama_pembeli}\n`
+      message += `No. WhatsApp: ${formattedNomer}\n`
+      message += `Alamat: ${alamat_pembeli}\n`
+      message += `Metode Pengambilan: ${metode_pengambilan}\n`
+
+      const encoded = encodeURIComponent(message)
+      window.open(`https://wa.me/${formattedOwnerPhone}?text=${encoded}`, '_blank')
+
       setCartItems([]);
       closeConfirmModal();
 
     } catch (err) {
       console.error('Error membuat pesanan:', err);
       setFormError('Gagal menyimpan pesanan. Coba lagi.');
+      toast.error('Gagal membuat pesanan');
     } finally {
       setIsSubmitting(false);
     }
@@ -284,7 +372,8 @@ export default function Home() {
     <div className="font-montserrat min-h-screen flex flex-col">
       <NavbarTab activeView={activeView} onSwitchView={switchView} />
 
-      <main className="flex-grow pb-20">
+      <main className="flex-grow pb-32 md:pb-20">
+        {/* Home View */}
         {activeView === 'home' && (
           <>
             {/* Hero Section */}
@@ -308,7 +397,7 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={() => switchView('menu')}
-                    className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-105 font-medium py-3 px-6 rounded-full cursor-pointer transition"
+                    className="bg-gray-200 text-gray-800 hover:bg-white hover:scale-105 font-medium py-3 px-6 rounded-full cursor-pointer transition active:scale-95"
                   >
                     Lihat Menu
                   </button>
@@ -327,7 +416,7 @@ export default function Home() {
                     { icon: '/Icons/FindIcon.png', title: 'Resep Asli Rumahan', desc: 'Menunjukkan kehangatan dan ketulusan dalam proses pembuatan.' },
                     { icon: '/Icons/QualityIcon.png', title: 'Kualitas Terjamin, Rasa Konsisten', desc: 'Kami menjaga setiap proses agar rasa dimsum kami selalu sama.' }
                   ].map((item, i) => (
-                    <div key={i} className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl">
+                    <div key={i} className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl transition-shadow">
                       <div className="w-16 h-16 mb-4 flex items-center justify-center">
                         <Image src={item.icon} alt={item.title} width={48} height={48} className="object-contain" />
                       </div>
@@ -339,7 +428,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 🔹 Special Menu Preview */}
+            {/* Special Menu Preview */}
             <section className="py-10 bg-white px-4">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-4xl md:text-4xl font-medium text-center text-gray-800 mb-8">
@@ -366,7 +455,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 🔹 CTA */}
+            {/* CTA */}
             <section className="py-12 px-4">
               <div className="max-w-4xl mx-auto text-center">
                 <div className="bg-yellow-50 p-8 rounded-xl border-2 border-orange-900">
@@ -379,7 +468,7 @@ export default function Home() {
                   </p>
                   <button
                     onClick={() => switchView('menu')}
-                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition cursor-pointer"
+                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition active:scale-95 cursor-pointer"
                   >
                     Lihat Semua Menu
                   </button>
@@ -409,6 +498,7 @@ export default function Home() {
           </>
         )}
 
+        {/* Menu View */}
         {activeView === 'menu' && (
           <section className="py-12 px-4 bg-gray-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
@@ -429,11 +519,11 @@ export default function Home() {
                           setActiveCategory(category);
                           setSearchQuery('');
                         }}
-                        className={`px-6 py-2.5 rounded-full font-medium ${
+                        className={`px-6 py-2.5 rounded-full font-medium transition-all ${
                           activeCategory === category
                             ? 'bg-[#A65C37] text-white shadow-md'
                             : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                        }`}
+                        } active:scale-95`}
                       >
                         {category}
                       </button>
@@ -447,13 +537,13 @@ export default function Home() {
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
                         placeholder={`Cari di kategori "${activeCategory}"...`}
-                        className="w-full px-4 py-2.5 pl-10 pr-10 rounded-full border border-gray-300 focus:ring-2 focus:ring-[#A65C37] outline-none"
+                        className="w-full px-4 py-2.5 pl-10 pr-10 rounded-full border border-gray-300 focus:ring-2 focus:ring-[#A65C37] outline-none transition-all"
                       />
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                       {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                           ✕
                         </button>
                       )}
@@ -464,7 +554,7 @@ export default function Home() {
 
               {loading && (
                 <div className="text-center py-12">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-r-transparent"></div>
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#A65C37] border-r-transparent"></div>
                   <p className="mt-4 text-gray-600">Memuat menu...</p>
                 </div>
               )}
@@ -472,14 +562,14 @@ export default function Home() {
               {error && (
                 <div className="text-center py-12 text-red-500">
                   <p>{error}</p>
-                  <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-[#A65C37] text-white rounded-full">
+                  <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-[#A65C37] text-white rounded-full transition active:scale-95">
                     Coba Lagi
                   </button>
                 </div>
               )}
 
               {!loading && !error && filteredProduk.length > 0 && (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
                   {filteredProduk.map(item => {
                     const gambar = Array.isArray(item.url_gambar)
                       ? item.url_gambar[0]
@@ -490,12 +580,18 @@ export default function Home() {
                     return (
                       <div
                         key={item.id_produk}
-                        className={`bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition ${
+                        className={`bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-all ${
                           isMatchSearch ? 'ring-2 ring-[#A65C37] bg-[#A65C37]/5' : ''
                         }`}
                       >
                         <div className="relative h-48 w-full">
-                          <Image src={gambar} alt={item.nama_produk} fill className="object-cover" />
+                          <Image 
+                            src={gambar} 
+                            alt={item.nama_produk} 
+                            fill 
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
                         </div>
                         <div className="p-4">
                           <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
@@ -503,7 +599,7 @@ export default function Home() {
                           <div className="flex justify-center mt-2">
                             <button
                               onClick={() => openVariantModal(item)}
-                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition"
+                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95"
                             >
                               Lihat Produk
                             </button>
@@ -524,6 +620,7 @@ export default function Home() {
           </section>
         )}
 
+        {/* Cart View */}
         {activeView === 'cart' && (
           <section className="py-8 px-4 bg-gray-50 min-h-screen">
             <div className="max-w-6xl mx-auto">
@@ -540,7 +637,7 @@ export default function Home() {
                   <p className="text-gray-600 mb-6">Yuk tambahkan menu favoritmu!</p>
                   <button
                     onClick={() => switchView('menu')}
-                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition"
+                    className="bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-2 px-6 rounded-full transition active:scale-95"
                   >
                     Lihat Menu
                   </button>
@@ -551,7 +648,13 @@ export default function Home() {
                     {cartItems.map((item) => (
                       <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm flex items-start gap-4">
                         <div className="w-20 h-20 flex-shrink-0 relative">
-                          <Image src={item.url_gambar} alt={item.nama_varian} fill className="object-cover rounded-md" />
+                          <Image 
+                            src={item.url_gambar} 
+                            alt={item.nama_varian} 
+                            fill 
+                            className="object-cover rounded-md"
+                            sizes="80px"
+                          />
                         </div>
                         <div className="flex-grow">
                           <h3 className="font-semibold text-gray-900">{item.nama_produk}</h3>
@@ -559,15 +662,24 @@ export default function Home() {
                           <div className="flex items-center justify-between mt-2">
                             <span className="font-bold text-[#A65C37]">{formatRupiah(item.harga)}</span>
                             <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-2 py-1">
-                              <button onClick={() => updateCartQuantity(item.id, -1)} className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded">
+                              <button 
+                                onClick={() => updateCartQuantity(item.id, -1)} 
+                                className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded active:scale-95"
+                              >
                                 −
                               </button>
                               <span className="text-sm font-medium w-6 text-center">{item.jumlah}</span>
-                              <button onClick={() => updateCartQuantity(item.id, 1)} className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded">
+                              <button 
+                                onClick={() => updateCartQuantity(item.id, 1)} 
+                                className="w-6 h-6 flex items-center justify-center text-gray-700 hover:bg-gray-200 rounded active:scale-95"
+                              >
                                 +
                               </button>
                             </div>
-                            <button onClick={() => removeCartItem(item.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
+                            <button 
+                              onClick={() => removeCartItem(item.id)} 
+                              className="text-red-500 hover:text-red-700 text-sm font-medium active:scale-95"
+                            >
                               Hapus
                             </button>
                           </div>
@@ -576,12 +688,11 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* 🔹 Ringkasan Order — Desktop */}
+                  {/* Desktop Summary */}
                   <div className="lg:col-span-1">
-                    <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm">
+                    <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm sticky top-4">
                       <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Order</h2>
                       
-                      {/* Detail */}
                       <div className="space-y-3 mb-4">
                         {cartItems.map(item => (
                           <div key={item.id} className="flex justify-between py-2 border-b border-gray-100">
@@ -598,7 +709,6 @@ export default function Home() {
                         ))}
                       </div>
 
-                      {/* Summary */}
                       <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex justify-between">
                           <span>Subtotal</span>
@@ -611,46 +721,46 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* ✅ Ganti ke openConfirmModal */}
                       <button
                         onClick={openConfirmModal}
-                        className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition"
+                        className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition active:scale-95"
                       >
-                        Proceed to Checkout
+                        Buat Pesanan
                       </button>
                     </div>
 
-                    {/* 🔹 Mobile: Sticky Bottom Summary */}
-                    <div className="md:hidden fixed bottom-16 left-0 right-0 z-50 bg-white p-4 rounded-t-lg shadow-lg">
+                    {/* Mobile Sticky Bottom */}
+                    <div className="md:hidden fixed bottom-15 left-0 right-0 z-40 bg-white p-4 rounded-t-lg shadow-lg border-t border-gray-200">
                       <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <input type="checkbox" className="w-5 h-5 text-[#A65C37] border-gray-300 rounded focus:ring-2 focus:ring-[#A65C37]" defaultChecked />
-                          <span className="text-sm text-gray-800">Semua</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-gray-900">Rp{subtotal.toLocaleString('id-ID')}</div>
+                        <div className="text-left">
+                          <div className="text-sm text-gray-600">Total</div>
+                          <div className="text-xl font-bold text-gray-900">{formatRupiah(total)}</div>
                         </div>
                         <button
-                          onClick={() => setIsMobileSummaryOpen(true)}
-                          className="ml-2 px-3 py-1 bg-[#A65C37] text-white text-xs font-medium rounded-full"
+                          onClick={openMobileSummary}
+                          className="bg-[#A65C37] text-white font-medium py-3 px-6 rounded-full active:scale-95"
                         >
                           Lihat Detail
                         </button>
                       </div>
                     </div>
 
-                    {/* 🔹 Mobile Expanded Detail — Tablet-style */}
+                    {/* Mobile Expanded Detail */}
                     {isMobileSummaryOpen && (
-                      <div
-                        className="md:hidden fixed inset-x-4 bottom-24 z-50 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="p-4 max-h-[70vh] overflow-y-auto">
-                          <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-semibold text-gray-800">Ringkasan Pesanan</h3>
+                      <>
+                        <div 
+                          className="md:hidden fixed inset-0 z-50 bg-black/50"
+                          onClick={closeMobileSummary}
+                        />
+                        <div
+                          className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom duration-300"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-800 text-lg">Ringkasan Pesanan</h3>
                             <button
-                              onClick={() => setIsMobileSummaryOpen(false)}
-                              className="text-gray-500 hover:text-gray-700"
+                              onClick={closeMobileSummary}
+                              className="text-gray-500 hover:text-gray-700 p-2 active:scale-95"
                               aria-label="Tutup detail"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -659,48 +769,50 @@ export default function Home() {
                             </button>
                           </div>
 
-                          <div className="space-y-3 mb-4">
-                            {cartItems.map((item) => (
-                              <div key={item.id} className="flex justify-between py-3 border-b border-gray-100 last:border-0">
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-sm text-gray-900">{item.nama_produk}</span>
-                                  <span className="text-xs text-gray-600">Varian: {item.nama_varian}</span>
-                                  <span className="text-xs text-gray-500">x{item.jumlah}</span>
-                                  <span className="text-xs text-gray-500 mt-1">Harga/item: {formatRupiah(item.harga)}</span>
+                          <div className="p-4 max-h-[60vh] overflow-y-auto">
+                            <div className="space-y-3 mb-4">
+                              {cartItems.map((item) => (
+                                <div key={item.id} className="flex justify-between py-3 border-b border-gray-100 last:border-0">
+                                  <div className="flex flex-col flex-1">
+                                    <span className="font-medium text-sm text-gray-900">{item.nama_produk}</span>
+                                    <span className="text-xs text-gray-600">Varian: {item.nama_varian}</span>
+                                    <span className="text-xs text-gray-500">x{item.jumlah}</span>
+                                    <span className="text-xs text-gray-500 mt-1">Harga/item: {formatRupiah(item.harga)}</span>
+                                  </div>
+                                  <div className="text-right ml-4">
+                                    <span className="block font-medium text-sm text-[#A65C37]">
+                                      {formatRupiah(item.subtotal)}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="text-right">
-                                  <span className="block font-medium text-sm text-[#A65C37]">
-                                    Rp{item.subtotal.toLocaleString('id-ID')}
-                                  </span>
-                                </div>
+                              ))}
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-200">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="text-gray-700">Subtotal</span>
+                                <span className="font-medium">{formatRupiah(subtotal)}</span>
                               </div>
-                            ))}
-                          </div>
-
-                          <div className="pt-4 border-t border-gray-200">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-700">Subtotal</span>
-                              <span className="font-medium">{formatRupiah(subtotal)}</span>
-                            </div>
-                            <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
-                              <span>Total</span>
-                              <span>{formatRupiah(total)}</span>
+                              <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
+                                <span>Total</span>
+                                <span>{formatRupiah(total)}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="p-4 border-t border-gray-100 bg-gray-50">
-                          <button
-                            onClick={() => {
-                              setIsMobileSummaryOpen(false);
-                              openConfirmModal();
-                            }}
-                            className="w-full bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-lg text-sm transition"
-                          >
-                            Buat Pesanan
-                          </button>
+                          <div className="p-4 border-t border-gray-100 bg-gray-50">
+                            <button
+                              onClick={() => {
+                                closeMobileSummary();
+                                openConfirmModal();
+                              }}
+                              className="w-full bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-lg text-sm transition active:scale-95"
+                            >
+                              Buat Pesanan
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -710,12 +822,18 @@ export default function Home() {
         )}
       </main>
 
-      {/* 🔹 MODAL PRODUK */}
+      {/* Product Modal */}
       {isModalOpen && selectedProduct && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30" onClick={closeVariantModal} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <div 
+            className="fixed inset-0 z-40 bg-black/30 animate-in fade-in duration-200" 
+            onClick={closeVariantModal} 
+          />
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all">
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -724,7 +842,7 @@ export default function Home() {
                   </svg>
                   Detail {selectedProduct.nama_produk}
                 </h3>
-                <button onClick={closeVariantModal} className="text-gray-500 hover:text-gray-700 text-xl font-bold">×</button>
+                <button onClick={closeVariantModal} className="text-gray-500 hover:text-gray-700 text-xl font-bold active:scale-95">×</button>
               </div>
 
               <div className="flex flex-col md:flex-row max-h-[70vh] overflow-y-auto">
@@ -739,7 +857,7 @@ export default function Home() {
                     />
                     <button
                       onClick={() => setIsImageModalOpen(true)}
-                      className="absolute bottom-2 right-2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                      className="absolute bottom-2 right-2 bg-white/80 hover:bg-white p-2 rounded-full shadow active:scale-95"
                       aria-label="Lihat gambar penuh"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -757,7 +875,9 @@ export default function Home() {
                   </h5>
 
                   {modalLoading ? (
-                    <div className="flex justify-center py-6"><div className="inline-block h-6 w-6 animate-spin border-2 border-r-transparent"></div></div>
+                    <div className="flex justify-center py-6">
+                      <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#A65C37] border-r-transparent"></div>
+                    </div>
                   ) : modalVariants.length === 0 ? (
                     <p className="text-gray-500 text-center py-4">Belum ada varian tersedia.</p>
                   ) : (
@@ -765,7 +885,7 @@ export default function Home() {
                       {modalVariants.map(variant => {
                         const qty = selectedVariants[variant.id_varian] || 0;
                         return (
-                          <div key={variant.id_varian} className={`p-3 rounded-lg border ${
+                          <div key={variant.id_varian} className={`p-3 rounded-lg border transition-all ${
                             variant.stok_varian <= 0 ? 'bg-gray-100 border-gray-300 text-gray-500' :
                             qty > 0 ? 'bg-[#ededed] border-[#d36e3b]' : 'border-gray-200 hover:bg-slate-200'
                           }`}>
@@ -780,12 +900,17 @@ export default function Home() {
                                 </p>
                                 {variant.stok_varian > 0 && (
                                   <div className="flex items-center gap-2 mt-1">
-                                    <button onClick={() => updateVariantQuantity(variant.id_varian, -1)} className="w-6 h-6 flex items-center justify-center bg-white border rounded">−</button>
+                                    <button 
+                                      onClick={() => updateVariantQuantity(variant.id_varian, -1)} 
+                                      className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
+                                    >
+                                      −
+                                    </button>
                                     <span className="w-6 text-center">{qty}</span>
                                     <button 
                                       onClick={() => updateVariantQuantity(variant.id_varian, 1)} 
                                       disabled={qty >= variant.stok_varian}
-                                      className={`w-6 h-6 flex items-center justify-center bg-white border rounded ${qty >= variant.stok_varian ? 'opacity-50' : ''}`}
+                                      className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${qty >= variant.stok_varian ? 'opacity-50' : ''}`}
                                     >
                                       +
                                     </button>
@@ -803,7 +928,7 @@ export default function Home() {
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <div className="flex justify-between text-sm">
                         <span>Subtotal:</span>
-                        <span className="font-bold">{formatRupiah(calculateModalSubtotal())}</span>
+                        <span className="font-bold">{formatRupiah(modalSubtotal)}</span>
                       </div>
                       <div className="flex justify-between text-sm mt-1">
                         <span>Total Item:</span>
@@ -815,21 +940,30 @@ export default function Home() {
               </div>
 
               <div className="p-4 border-t border-gray-200 flex justify-center gap-3">
-                <button onClick={addToCart} className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b]">
+                <button 
+                  onClick={addToCart} 
+                  className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95"
+                >
                   Tambah Ke Keranjang
                 </button>
-                <button onClick={closeVariantModal} className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300">
+                <button 
+                  onClick={closeVariantModal} 
+                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition active:scale-95"
+                >
                   Tutup
                 </button>
               </div>
             </div>
           </div>
 
-          {/* 🔹 MODAL GAMBAR */}
+          {/* Image Modal */}
           {isImageModalOpen && (
-            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90" onClick={() => setIsImageModalOpen(false)}>
+            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200" onClick={() => setIsImageModalOpen(false)}>
               <div className="relative max-w-[95vw] max-h-[95vh] rounded-lg bg-white" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setIsImageModalOpen(false)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white/70 rounded-full">
+                <button 
+                  onClick={() => setIsImageModalOpen(false)} 
+                  className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white/70 rounded-full active:scale-95"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -848,15 +982,15 @@ export default function Home() {
         </>
       )}
 
-      {/* 🔹 MODAL KONFIRMASI PESANAN */}
+      {/* Confirm Order Modal */}
       {isConfirmModalOpen && (
         <>
           <div 
-            className="fixed inset-0 z-50 bg-black/40" 
+            className="fixed inset-0 z-50 bg-black/40 animate-in fade-in duration-200" 
             onClick={closeConfirmModal}
           />
           <div 
-            className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto animate-in fade-in duration-200"
             onClick={e => e.stopPropagation()}
           >
             <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-xl">
@@ -864,7 +998,7 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-gray-800">Konfirmasi Pesanan</h3>
                 <button 
                   onClick={closeConfirmModal}
-                  className="text-gray-500 hover:text-gray-700 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100"
+                  className="text-gray-500 hover:text-gray-700 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95"
                   aria-label="Tutup"
                 >
                   ✕
@@ -886,7 +1020,7 @@ export default function Home() {
                     type="text"
                     value={pembeliData.nama_pembeli}
                     onChange={e => setPembeliData(prev => ({ ...prev, nama_pembeli: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none transition-all"
                     placeholder="Contoh: Budi Santoso"
                     required
                   />
@@ -900,7 +1034,7 @@ export default function Home() {
                     type="tel"
                     value={pembeliData.nomer_pembeli}
                     onChange={e => setPembeliData(prev => ({ ...prev, nomer_pembeli: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none transition-all"
                     placeholder="Contoh: 081234567890"
                     required
                   />
@@ -917,13 +1051,33 @@ export default function Home() {
                     value={pembeliData.alamat_pembeli}
                     onChange={e => setPembeliData(prev => ({ ...prev, alamat_pembeli: e.target.value }))}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none resize-none transition-all"
                     placeholder="Contoh: Jl. Merdeka No. 45, RT 02/RW 03, Kel. Sukamaju, Kec. Kota Baru"
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Termasuk nama jalan, RT/RW, kelurahan, kecamatan, dan kota.
                   </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Pilih Metode Pengambilan *
+                  </label>
+                  <Select
+                    value={pembeliData.metode_pengambilan}
+                    onValueChange={value =>
+                      setPembeliData(prev => ({ ...prev, metode_pengambilan: value }))
+                    }
+                  >
+                    <SelectTrigger className="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent">
+                      <SelectValue placeholder="Pilih metode..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#A65C37] border border-[#3a2921] text-white rounded-lg">
+                      <SelectItem value="COD">COD (Bayar di Tempat)</SelectItem>
+                      <SelectItem value="Self Pick Up">Self Pick Up (Ambil Sendiri)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg text-sm">
@@ -943,7 +1097,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`w-full py-3 px-4 rounded-lg font-medium text-white transition ${
+                  className={`w-full py-3 px-4 rounded-lg font-medium text-white transition active:scale-95 ${
                     isSubmitting 
                       ? 'bg-gray-400 cursor-not-allowed' 
                       : 'bg-[#A65C37] hover:bg-[#d36e3b]'
