@@ -354,8 +354,9 @@ export default function Home() {
       message += `Metode Pengambilan: ${metode_pengambilan}\n`
 
       const encoded = encodeURIComponent(message)
-      window.open(`https://api.whatsapp.com/send?phone=${formattedOwnerPhone}?text=${encoded}`)
+      const waLink = `https://api.whatsapp.com/send?phone=${formattedOwnerPhone}&text=${encoded}`;
 
+      window.location.href = waLink;
       setCartItems([]);
       closeConfirmModal();
 
