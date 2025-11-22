@@ -309,6 +309,15 @@ export default function Home() {
       return;
     }
 
+      // ✅ Validasi panjang minimal 12 digit angka pada nomor WhatsApp
+    const cleanPhone = nomer_pembeli.replace(/\D/g, '');
+    if (cleanPhone.length < 12) {
+      setFormError('Nomor WhatsApp minimal 12 digit angka.');
+      toast.error('Harap masukkan nomor WhatsApp yang valid (minimal 12 digit).');
+      setIsSubmitting(false);
+      return;
+    }
+
     let formattedNomer = nomer_pembeli.replace(/\D/g, '');
     if (formattedNomer.startsWith('0')) {
       formattedNomer = '62' + formattedNomer.slice(1);
@@ -1036,14 +1045,34 @@ export default function Home() {
                   <input
                     type="tel"
                     value={pembeliData.nomer_pembeli}
-                    onChange={e => setPembeliData(prev => ({ ...prev, nomer_pembeli: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65C37] focus:border-transparent outline-none transition-all"
+                    onChange={e => {
+                      const rawValue = e.target.value;
+                      // Opsional: batasi input ke angka, +, dan spasi/dash (atau biarkan bebas, tapi cek bersih saat validasi)
+                      setPembeliData(prev => ({ ...prev, nomer_pembeli: rawValue }));
+                    }}
+                    onBlur={() => {
+                      // Saat blur, kita bisa bersihkan & normalisasi (opsional)
+                      const cleaned = pembeliData.nomer_pembeli.replace(/\D/g, '');
+                      if (cleaned.length >= 1 && cleaned.length < 12 && cleaned !== '') {
+                        toast.error('Nomor WhatsApp minimal 12 digit angka.');
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#A65C37] outline-none transition-all ${
+                      pembeliData.nomer_pembeli.replace(/\D/g, '').length > 0 && pembeliData.nomer_pembeli.replace(/\D/g, '').length < 12
+                        ? 'border-red-400 bg-red-50'
+                        : 'border-gray-300'
+                    }`}
                     placeholder="Contoh: 081234567890"
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Pastikan nomor aktif & terdaftar di WhatsApp.
+                    Masukkan minimal 12 digit angka (contoh: 081234567890 atau +6281234567890).
                   </p>
+                  {pembeliData.nomer_pembeli.replace(/\D/g, '').length > 0 && pembeliData.nomer_pembeli.replace(/\D/g, '').length < 12 && (
+                    <p className="text-xs text-red-500 mt-1">
+                      ❗ Nomor harus minimal 12 digit angka.
+                    </p>
+                  )}
                 </div>
 
                 <div>
