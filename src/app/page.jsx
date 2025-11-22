@@ -594,13 +594,15 @@ export default function Home() {
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           />
                         </div>
-                        <div className="p-4">
-                          <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
-                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.deskripsi}</p>
-                          <div className="flex justify-center mt-2">
+                        <div className="p-4 flex flex-col justify-between h-[160px]"> {/* <-- Tambahkan class ini */}
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
+                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.deskripsi}</p>
+                          </div>
+                          <div className="flex justify-center mt-auto"> {/* <-- Gunakan mt-auto untuk mendorong tombol ke bawah */}
                             <button
                               onClick={() => openVariantModal(item)}
-                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95"
+                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95 cursor-pointer"
                             >
                               Lihat Produk
                             </button>
