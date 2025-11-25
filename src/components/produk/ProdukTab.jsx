@@ -1,6 +1,15 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
+
+// Add-ons services
+import {
+  getAddOnsByProduk,
+  addAddOn,
+  updateAddOn,
+  deleteAddOn
+} from "../../../services/addOnService";
+
 import {
   getProduk,
   addProduk,
@@ -88,6 +97,11 @@ export default function ProdukTab() {
     harga: "",
     stok: ""
   });
+
+  // 🔹 Add-ons state
+  const [addOnList, setAddOnList] = useState([]);
+  const [addOnForm, setAddOnForm] = useState({ nama: "", harga: "" });
+  const [editingAddOn, setEditingAddOn] = useState(null);
 
   const [imagePreviews, setImagePreviews] = useState([]); 
   const [existingImages, setExistingImages] = useState([]);
@@ -188,13 +202,20 @@ export default function ProdukTab() {
     setSelectedProduk(p);
     setShowVariantModal(true);
     setEditingVarian(null);
+    setEditingAddOn(null); // reset
     setVariantForm({ nama: "", harga: "", stok: "" });
+    setAddOnForm({ nama: "", harga: "" }); // reset form add-on
+    
     try {
-      const v = await getVarianByProduk(p.id_produk);
+      const [v, a] = await Promise.all([
+        getVarianByProduk(p.id_produk),
+        getAddOnsByProduk(p.id_produk)
+      ]);
       setVarianList(v || []);
+      setAddOnList(a || []);
     } catch (err) {
       console.error(err);
-      toast.error("Gagal memuat varian");
+      toast.error("Gagal memuat varian atau add-ons");
     }
   }
   
@@ -757,55 +778,345 @@ export default function ProdukTab() {
                 </div>
               )}
             </div>
+
+            {/* ===== ADD-ONS SECTION ===== */}
+            <div>
+              <h4 className="font-medium mb-4 flex items-center gap-2 text-gray-900">
+                <Tag className="h-4 w-4" />
+                Add-ons ({addOnList.length})
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto text-xs h-7 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300"
+                  onClick={() => {
+                    setEditingAddOn(null);
+                    setAddOnForm({ nama: "", harga: "" });
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Tambah Add-on
+                </Button>
+              </h4>
+
+              {addOnList.length === 0 ? (
+                <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 mb-2">
+                    <Plus className="h-5 w-5 text-gray-500" />
+                  </div>
+                  <p className="text-gray-500 text-sm">Belum ada add-ons untuk produk ini</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {addOnList.map((a) => (
+                    <div key={a.id_add_on} className="bg-gray-50 p-4 rounded-lg border">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h5 className="font-medium text-gray-900">{a.nama_add_on}</h5>
+                          <p className="text-sm text-gray-600 mt-1">
+                            💰 {new Intl.NumberFormat('id-ID', {
+                              style: 'currency',
+                              currency: 'IDR',
+                              minimumFractionDigits: 0
+                            }).format(a.harga_add_on)}
+                          </p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingAddOn(a);
+                              setAddOnForm({
+                                nama: a.nama_add_on,
+                                harga: String(a.harga_add_on)
+                              });
+                            }}
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700"
+                          >
+                            <Edit3 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm(`Hapus add-on "${a.nama_add_on}"?`)) {
+                                deleteAddOn(a.id_add_on)
+                                  .then(() => {
+                                    toast.success("Add-on berhasil dihapus");
+                                    setAddOnList(prev => prev.filter(x => x.id_add_on !== a.id_add_on));
+                                  })
+                                  .catch(err => {
+                                    toast.error(err.message || "Gagal menghapus add-on");
+                                  });
+                              }
+                            }}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Form Add-on Baru/Update */}
+            <div className="border-t pt-6">
+              <h4 className="font-medium mb-3 text-gray-900">
+                {editingAddOn ? "Edit Add-on" : "Tambah Add-on"}
+              </h4>
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const { nama, harga } = addOnForm;
+                  if (!nama.trim()) return toast.error("Nama add-on wajib diisi");
+
+                  try {
+                    if (editingAddOn) {
+                      await updateAddOn(editingAddOn.id_add_on, nama, Number(harga));
+                      toast.success("Add-on berhasil diperbarui");
+                      setAddOnList(prev =>
+                        prev.map(a =>
+                          a.id_add_on === editingAddOn.id_add_on
+                            ? { ...a, nama_add_on: nama, harga_add_on: Number(harga) }
+                            : a
+                        )
+                      );
+                    } else {
+                      // ✅ Tambah add-on baru
+                      const newAddOns = await addAddOn(selectedProduk.id_produk, nama, Number(harga));
+
+                      // 🔹 Validasi hasil
+                      if (!newAddOns || !Array.isArray(newAddOns) || newAddOns.length === 0) {
+                        throw new Error("Gagal menambahkan add-on: respons kosong dari server");
+                      }
+
+                      const newAddOn = newAddOns[0];
+                      setAddOnList(prev => [...prev, newAddOn]);
+                      toast.success("Add-on berhasil ditambahkan");
+                    }
+
+                    // Reset form & state
+                    setAddOnForm({ nama: "", harga: "" });
+                    setEditingAddOn(null);
+                  } catch (err) {
+                    console.error("Error saat menyimpan add-on:", err);
+                    toast.error(err.message || "Gagal menyimpan add-on. Coba lagi.");
+                  }
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <Label htmlFor="addOnName">Nama Add-on *</Label>
+                  <Input
+                    id="addOnName"
+                    placeholder="Contoh: Extra Sambal, Telur, dll"
+                    value={addOnForm.nama}
+                    onChange={(e) => setAddOnForm({ ...addOnForm, nama: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="addOnPrice">Harga Tambahan (Rp)</Label>
+                  <Input
+                    id="addOnPrice"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={addOnForm.harga}
+                    onChange={(e) => setAddOnForm({ ...addOnForm, harga: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" className="bg-[#A65C37] hover:bg-[#7f4629] text-white">
+                    {editingAddOn ? "Perbarui Add-on" : "Tambah Add-on"}
+                  </Button>
+                  {editingAddOn && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingAddOn(null);
+                        setAddOnForm({ nama: "", harga: "" });
+                      }}
+                      className="bg-gray-100 hover:bg-gray-200"
+                    >
+                      Batal Edit
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </div>
             
             {/* Add New Variant */}
             <div className="border-t pt-6">
               <h4 className="font-medium mb-4 text-gray-900 dark:text-white">Tambah Varian Baru</h4>
-              <form onSubmit={submitVariant} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="variantName">Nama Varian *</Label>
-                    <Input
-                      id="variantName"
-                      placeholder="Contoh: Ukuran L, Merah, dll"
-                      value={variantForm.nama}
-                      onChange={(e) => setVariantForm({...variantForm, nama: e.target.value})}
-                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="variantPrice">Harga</Label>
-                    <Input
-                      id="variantPrice"
-                      type="number"
-                      placeholder="0"
-                      value={variantForm.harga}
-                      onChange={(e) => setVariantForm({...variantForm, harga: e.target.value})}
-                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="variantStock">Stok</Label>
-                    <Input
-                      id="variantStock"
-                      type="number"
-                      placeholder="0"
-                      value={variantForm.stok}
-                      onChange={(e) => setVariantForm({...variantForm, stok: e.target.value})}
-                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="submit" 
-                    disabled={!variantForm.nama.trim()}
-                    className="bg-[#A65C37] text-white hover:bg-[#7f4629]"
+              {/* ===== ADD-ONS SECTION ===== */}
+              <div className="mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                    <Tag className="h-4 w-4" />
+                    Add-ons ({addOnList.length})
+                  </h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingAddOn(null);
+                      setAddOnForm({ nama: "", harga: "" });
+                    }}
+                    className="text-xs px-2 h-7 bg-green-50 text-green-700 hover:bg-green-100"
                   >
-                    {editingVarian ? "Perbarui Varian" : "Tambah Varian"}
+                    <Plus className="h-3 w-3 mr-1" />
+                    Tambah Add-on
                   </Button>
                 </div>
-              </form>
+
+                {addOnList.length === 0 ? (
+                  <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <Tag className="h-8 w-8 mx-auto text-gray-300 mb-2" />
+                    <p className="text-gray-500 text-sm">Belum ada add-ons untuk produk ini</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {addOnList.map((a) => (
+                      <div key={a.id_add_on} className="bg-gray-50 p-4 rounded-lg border">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h5 className="font-medium text-gray-900">{a.nama_add_on}</h5>
+                            <p className="text-sm text-gray-600 mt-1">
+                              💰 {new Intl.NumberFormat('id-ID', {
+                                style: 'currency',
+                                currency: 'IDR',
+                                minimumFractionDigits: 0
+                              }).format(a.harga_add_on)}
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingAddOn(a);
+                                setAddOnForm({
+                                  nama: a.nama_add_on,
+                                  harga: String(a.harga_add_on)
+                                });
+                              }}
+                              className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Hapus add-on "${a.nama_add_on}"?`)) {
+                                  deleteAddOn(a.id_add_on)
+                                    .then(() => {
+                                      toast.success("Add-on berhasil dihapus");
+                                      setAddOnList(prev => prev.filter(x => x.id_add_on !== a.id_add_on));
+                                    })
+                                    .catch(err => {
+                                      toast.error(err.message || "Gagal menghapus add-on");
+                                    });
+                                }
+                              }}
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Form Add-on Baru/Update */}
+              <div className="border-t pt-6">
+                <h4 className="font-medium mb-3 text-gray-900">
+                  {editingAddOn ? "Edit Add-on" : "Tambah Add-on"}
+                </h4>
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const { nama, harga } = addOnForm;
+                    if (!nama.trim()) return toast.error("Nama add-on wajib diisi");
+
+                    try {
+                      if (editingAddOn) {
+                        await updateAddOn(editingAddOn.id_add_on, nama, Number(harga));
+                        toast.success("Add-on berhasil diperbarui");
+                        setAddOnList(prev =>
+                          prev.map(a => 
+                            a.id_add_on === editingAddOn.id_add_on 
+                              ? { ...a, nama_add_on: nama, harga_add_on: Number(harga) } 
+                              : a
+                          )
+                        );
+                      } else {
+                        const newAddOn = await addAddOn(selectedProduk.id_produk, nama, Number(harga));
+                        toast.success("Add-on berhasil ditambahkan");
+                        setAddOnList(prev => [...prev, newAddOn[0]]);
+                      }
+                      setAddOnForm({ nama: "", harga: "" });
+                      setEditingAddOn(null);
+                    } catch (err) {
+                      console.error(err);
+                      toast.error(err.message || "Gagal menyimpan add-on");
+                    }
+                  }}
+                  className="space-y-3"
+                >
+                  <div>
+                    <Label htmlFor="addOnName">Nama Add-on *</Label>
+                    <Input
+                      id="addOnName"
+                      placeholder="Contoh: Extra Sambal, Telur, dll"
+                      value={addOnForm.nama}
+                      onChange={(e) => setAddOnForm({ ...addOnForm, nama: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="addOnPrice">Harga Tambahan (Rp)</Label>
+                    <Input
+                      id="addOnPrice"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={addOnForm.harga}
+                      onChange={(e) => setAddOnForm({ ...addOnForm, harga: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="submit" className="bg-[#A65C37] hover:bg-[#7f4629] text-white">
+                      {editingAddOn ? "Perbarui" : "Tambah"}
+                    </Button>
+                    {editingAddOn && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingAddOn(null);
+                          setAddOnForm({ nama: "", harga: "" });
+                        }}
+                        className="bg-gray-100 hover:bg-gray-200"
+                      >
+                        Batal
+                      </Button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+
             </div>
           </div>
         </DialogContent>

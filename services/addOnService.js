@@ -15,10 +15,11 @@ export async function getAddOnsByProduk(id_produk) {
 export async function addAddOn(id_produk, nama_add_on, harga_add_on) {
   const { data, error } = await supabase
     .from("add_ons")
-    .insert([{ id_produk, nama_add_on, harga_add_on }]);
+    .insert([{ id_produk, nama_add_on, harga_add_on }])
+    .select(); // 👈 Tambahkan .select() agar mengembalikan data yang dimasukkan
 
   if (error) throw error;
-  return data;
+  return data; // Sekarang data adalah array dari record yang baru ditambahkan
 }
 
 // update add-on

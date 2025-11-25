@@ -1,10 +1,10 @@
 'use client';
-
 import Image from 'next/image';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import NavbarTab from '@/components/User/NavbarTab';
 import Footer from '@/components/User/Footer';
+import { getAddOnsByProduk } from '../../services/addOnService';
 import { getProduk } from '../../services/productService';
 import { getVarianByProduk } from '../../services/variantService';
 import { createOrder } from '../../services/orderService';
@@ -17,10 +17,11 @@ import {
 } from "@/components/ui/select";
 import { getOwnerData } from '../../services/ownService';
 
-// 🔹 Cache untuk data varian
+// 🔹 Cache untuk data varian & add-ons
 const variantCache = new Map();
+const addOnCache = new Map();
 
-export default function Home() {
+export default function HomePage() {
   // 🔹 State navigasi
   const [activeView, setActiveView] = useState('home');
   const [activeCategory, setActiveCategory] = useState('Semua');
@@ -31,12 +32,19 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ✅ Hero Section: owner data
+  const [ownerData, setOwnerData] = useState(null);
+
   // 🔹 Modal produk
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalVariants, setModalVariants] = useState([]);
   const [selectedVariants, setSelectedVariants] = useState({});
+
+  // 🔹 Modal add-ons (dipilih per varian)
+  const [modalAddOns, setModalAddOns] = useState([]);
+  const [selectedAddOns, setSelectedAddOns] = useState({}); // { id_varian: [{id_add_on, qty}] }
 
   // 🔹 Modal gambar
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -58,36 +66,44 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // ✅ Format rupiah dengan useMemo
+  // ✅ Format rupiah dengan useCallback
   const formatRupiah = useCallback((angka) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka), []);
 
-  // ✅ Load data produk & keranjang
+  // ✅ Load data produk, keranjang, & owner (hero)
   useEffect(() => {
-    const fetchProduk = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getProduk();
-        setProduk(data);
-        
-        // 🔹 Prefetch varian untuk produk pertama (optimasi)
-        if (data.length > 0) {
-          data.slice(0, 3).forEach(product => {
+        const [produkData, ownerData] = await Promise.all([
+          getProduk(),
+          getOwnerData()
+        ]);
+        setProduk(produkData);
+        setOwnerData(ownerData);
+
+        // 🔹 Prefetch varian & add-ons untuk 3 produk pertama (optimasi)
+        if (produkData.length > 0) {
+          produkData.slice(0, 3).forEach(product => {
             getVarianByProduk(product.id_produk).then(variants => {
               variantCache.set(product.id_produk, variants);
+            });
+            getAddOnsByProduk(product.id_produk).then(addOns => {
+              addOnCache.set(product.id_produk, addOns);
             });
           });
         }
       } catch (err) {
-        console.error('Gagal fetch produk:', err);
-        setError('Gagal memuat menu.');
-        toast.error('Gagal memuat menu');
+        console.error('Gagal fetch data:', err);
+        if (!err?.message?.includes('owner')) {
+          setError('Gagal memuat menu.');
+          toast.error('Gagal memuat menu');
+        }
       } finally {
         setLoading(false);
       }
     };
-
-    fetchProduk();
+    fetchData();
 
     // Load cart dari localStorage
     const savedCart = typeof window !== 'undefined' 
@@ -107,7 +123,6 @@ export default function Home() {
   const switchView = useCallback((view) => {
     if (['home', 'menu', 'cart'].includes(view)) {
       setActiveView(view);
-      // Reset mobile summary ketika pindah view
       setIsMobileSummaryOpen(false);
       setTimeout(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -121,26 +136,28 @@ export default function Home() {
       setModalLoading(true);
       setSelectedProduct(product);
       setSelectedVariants({});
+      setSelectedAddOns({}); // reset add-ons tiap buka modal
 
-      // Cek cache dulu
-      const cachedVariants = variantCache.get(product.id_produk);
-      
-      if (cachedVariants) {
-        setModalVariants(cachedVariants);
-        setIsModalOpen(true);
-        setModalLoading(false);
-        return;
+      // 🔹 Ambil varian (pakai cache)
+      let variants = variantCache.get(product.id_produk);
+      if (!variants) {
+        variants = await getVarianByProduk(product.id_produk);
+        variantCache.set(product.id_produk, variants);
       }
-
-      // Jika tidak ada di cache, fetch baru
-      const variants = await getVarianByProduk(product.id_produk);
-      variantCache.set(product.id_produk, variants); // Simpan ke cache
       setModalVariants(variants);
+
+      // 🔹 Ambil add-ons (pakai cache)
+      let addOns = addOnCache.get(product.id_produk);
+      if (!addOns) {
+        addOns = await getAddOnsByProduk(product.id_produk);
+        addOnCache.set(product.id_produk, addOns);
+      }
+      setModalAddOns(addOns);
 
       setIsModalOpen(true);
     } catch (err) {
-      console.error('Gagal memuat varian:', err);
-      toast.error('Gagal memuat varian produk');
+      console.error('Gagal memuat varian atau add-ons:', err);
+      toast.error('Gagal memuat varian atau add-ons');
     } finally {
       setModalLoading(false);
     }
@@ -150,6 +167,54 @@ export default function Home() {
     setIsModalOpen(false);
     setSelectedProduct(null);
     setSelectedVariants({});
+    setSelectedAddOns({});
+  }, []);
+
+  // ✅ Update jumlah varian di modal
+  const updateVariantQuantity = useCallback((id_varian, change) => {
+    setSelectedVariants(prev => {
+      const current = prev[id_varian] || 0;
+      const newQty = Math.max(0, current + change);
+      const newState = { ...prev };
+      if (newQty === 0) {
+        delete newState[id_varian];
+      } else {
+        newState[id_varian] = newQty;
+      }
+      return newState;
+    });
+  }, []);
+
+  // ✅ Update jumlah add-on per varian
+  const updateAddOnQuantity = useCallback((id_varian, id_add_on, change) => {
+    setSelectedAddOns(prev => {
+      const current = prev[id_varian] || [];
+      const existing = current.find(a => a.id_add_on === id_add_on);
+      let newAddOns;
+
+      if (existing) {
+        const newQty = Math.max(0, existing.qty + change);
+        if (newQty === 0) {
+          newAddOns = current.filter(a => a.id_add_on !== id_add_on);
+        } else {
+          newAddOns = current.map(a =>
+            a.id_add_on === id_add_on ? { ...a, qty: newQty } : a
+          );
+        }
+      } else if (change > 0) {
+        newAddOns = [...current, { id_add_on, qty: change }];
+      } else {
+        newAddOns = current;
+      }
+
+      const newState = { ...prev };
+      if (newAddOns.length === 0) {
+        delete newState[id_varian];
+      } else {
+        newState[id_varian] = newAddOns;
+      }
+      return newState;
+    });
   }, []);
 
   // ✅ Tambah ke keranjang dengan toast
@@ -161,8 +226,25 @@ export default function Home() {
 
     const newItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
+      
+      // 🔹 Ambil add-ons untuk varian ini
+      const addOnsForThisVariant = (selectedAddOns[id_varian] || []).map(ao => {
+        const aoMeta = modalAddOns.find(a => a.id_add_on === ao.id_add_on);
+        return {
+          id_add_on: ao.id_add_on,
+          nama_add_on: aoMeta?.nama_add_on || '',
+          harga_add_on: aoMeta?.harga_add_on || 0,
+          jumlah: ao.qty
+        };
+      });
+
+      // ✅ Hitung subtotal termasuk add-ons
+      let hargaDasar = variant?.harga_varian || 0;
+      let totalAddOns = addOnsForThisVariant.reduce((sum, ao) => sum + (ao.harga_add_on * ao.jumlah), 0);
+      let hargaTotalPerItem = hargaDasar + totalAddOns;
+
       return {
-        id: `${selectedProduct.id_produk}-${id_varian}`,
+        id: `${selectedProduct.id_produk}-${id_varian}-${Date.now()}`,
         id_produk: selectedProduct.id_produk,
         id_varian: id_varian,
         nama_produk: selectedProduct.nama_produk,
@@ -170,19 +252,18 @@ export default function Home() {
         url_gambar: Array.isArray(selectedProduct.url_gambar)
           ? selectedProduct.url_gambar[0]
           : selectedProduct.url_gambar || '/placeholder.jpg',
-        harga: variant?.harga_varian || 0,
+        harga: hargaDasar,
         jumlah: qty,
-        subtotal: (variant?.harga_varian || 0) * qty,
+        subtotal: hargaTotalPerItem * qty,
+        add_ons: addOnsForThisVariant // 🔹 simpan add-ons
       };
     });
 
     setCartItems(prev => [...prev, ...newItems]);
-    
     const totalItems = newItems.reduce((sum, item) => sum + item.jumlah, 0);
     toast.success(`${totalItems} item berhasil ditambahkan ke keranjang`);
-    
     closeVariantModal();
-  }, [selectedVariants, modalVariants, selectedProduct, closeVariantModal]);
+  }, [selectedVariants, selectedAddOns, modalVariants, modalAddOns, selectedProduct, closeVariantModal]);
 
   // ✅ Hitung subtotal & total dengan useMemo
   const { subtotal, total } = useMemo(() => {
@@ -216,7 +297,6 @@ export default function Home() {
   // ✅ Filter produk dengan useMemo
   const { kategoriList, filteredProduk } = useMemo(() => {
     const kategoriList = ['Semua', ...new Set(produk.map(p => p.kategori?.nama_kategori).filter(Boolean))];
-    
     const filteredProduk = produk.filter(p => {
       const matchCategory = activeCategory === 'Semua' || p.kategori?.nama_kategori === activeCategory;
       const matchSearch = !searchQuery.trim() || 
@@ -224,7 +304,6 @@ export default function Home() {
         (p.deskripsi && p.deskripsi.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchCategory && matchSearch;
     });
-
     return { kategoriList, filteredProduk };
   }, [produk, activeCategory, searchQuery]);
 
@@ -234,26 +313,9 @@ export default function Home() {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
       return total + (variant?.harga_varian || 0) * qty;
     }, 0);
-    
     const totalModalItems = Object.values(selectedVariants).reduce((sum, q) => sum + q, 0);
-    
     return { modalSubtotal, totalModalItems };
   }, [selectedVariants, modalVariants]);
-
-  // ✅ Update jumlah varian di modal
-  const updateVariantQuantity = useCallback((id_varian, change) => {
-    setSelectedVariants(prev => {
-      const current = prev[id_varian] || 0;
-      const newQty = Math.max(0, current + change);
-      const newState = { ...prev };
-      if (newQty === 0) {
-        delete newState[id_varian];
-      } else {
-        newState[id_varian] = newQty;
-      }
-      return newState;
-    });
-  }, []);
 
   // ✅ Buka modal konfirmasi
   const openConfirmModal = useCallback(() => {
@@ -261,10 +323,7 @@ export default function Home() {
       toast.error('Keranjang masih kosong');
       return;
     }
-    
-    // Tutup mobile summary jika terbuka
     setIsMobileSummaryOpen(false);
-    
     setPembeliData({
       nama_pembeli: '',
       alamat_pembeli: '',
@@ -281,16 +340,12 @@ export default function Home() {
 
   // ✅ Mobile Summary Handlers
   const openMobileSummary = useCallback((e) => {
-    if (e) {
-      e.stopPropagation();
-    }
+    if (e) e.stopPropagation();
     setIsMobileSummaryOpen(true);
   }, []);
 
   const closeMobileSummary = useCallback((e) => {
-    if (e) {
-      e.stopPropagation();
-    }
+    if (e) e.stopPropagation();
     setIsMobileSummaryOpen(false);
   }, []);
 
@@ -301,7 +356,6 @@ export default function Home() {
     setFormError('');
 
     const { nama_pembeli, alamat_pembeli, nomer_pembeli, metode_pengambilan } = pembeliData;
-
     if (!nama_pembeli.trim() || !alamat_pembeli.trim() || !nomer_pembeli.trim() || !metode_pengambilan) {
       setFormError('Semua field wajib diisi.');
       setIsSubmitting(false);
@@ -309,7 +363,7 @@ export default function Home() {
       return;
     }
 
-      // ✅ Validasi panjang minimal 12 digit angka pada nomor WhatsApp
+    // ✅ Validasi panjang minimal 12 digit angka pada nomor WhatsApp
     const cleanPhone = nomer_pembeli.replace(/\D/g, '');
     if (cleanPhone.length < 12) {
       setFormError('Nomor WhatsApp minimal 12 digit angka.');
@@ -330,10 +384,9 @@ export default function Home() {
     try {
       const owner = await getOwnerData();
       const ownerPhone = owner?.no_hp || '+6285169901919';
-
       const formattedOwnerPhone = ownerPhone
         .replace(/[^0-9+]/g, '')
-        .replace(/^0/, '+62')
+        .replace(/^0/, '+62');
 
       const orderItems = cartItems.map(item => ({
         id_produk: item.id_produk,
@@ -342,33 +395,35 @@ export default function Home() {
         harga_satuan: item.harga,
       }));
 
-      const result = await createOrder(
+      await createOrder(
         { nama_pembeli, alamat_pembeli, nomer_pembeli: formattedNomer },
         orderItems
       );
 
       toast.success('Pesanan berhasil dibuat, membuka WhatsApp...');
 
-      let message = `Hai kak! Saya ingin memesan produk berikut:\n\n`
-
+      let message = `Hai kak! Saya ingin memesan produk berikut:\n`;
       cartItems.forEach((item) => {
-        message += `• ${item.nama_produk} (${item.nama_varian}) ×${item.jumlah}\n`
-      })
+        message += `• ${item.nama_produk} (${item.nama_varian}) ×${item.jumlah}\n`;
+        // 🔹 Tambahkan add-ons
+        if (item.add_ons?.length) {
+          item.add_ons.forEach(ao => {
+            message += `   + ${ao.nama_add_on} ×${ao.jumlah}\n`;
+          });
+        }
+      });
+      message += `\n`;
+      message += `Nama: ${nama_pembeli}\n`;
+      message += `No. WhatsApp: ${formattedNomer}\n`;
+      message += `Alamat: ${alamat_pembeli}\n`;
+      message += `Metode Pengambilan: ${metode_pengambilan}\n`;
 
-      message += `\n`
-      message += `\n`
-      message += `Nama: ${nama_pembeli}\n`
-      message += `No. WhatsApp: ${formattedNomer}\n`
-      message += `Alamat: ${alamat_pembeli}\n`
-      message += `Metode Pengambilan: ${metode_pengambilan}\n`
-
-      const encoded = encodeURIComponent(message)
+      const encoded = encodeURIComponent(message);
       const waLink = `https://api.whatsapp.com/send?phone=${formattedOwnerPhone}&text=${encoded}`;
-
       window.location.href = waLink;
+
       setCartItems([]);
       closeConfirmModal();
-
     } catch (err) {
       console.error('Error membuat pesanan:', err);
       setFormError('Gagal menyimpan pesanan. Coba lagi.');
@@ -381,12 +436,11 @@ export default function Home() {
   return (
     <div className="font-montserrat min-h-screen flex flex-col">
       <NavbarTab activeView={activeView} onSwitchView={switchView} />
-
       <main className="flex-grow pb-32 md:pb-20">
         {/* Home View */}
         {activeView === 'home' && (
           <>
-            {/* Hero Section */}
+            {/* Hero Section — DINAMIS */}
             <section className="relative w-full h-[750px] overflow-hidden">
               <Image
                 src="/Images/BannerBackground.jpg"
@@ -398,8 +452,13 @@ export default function Home() {
                 sizes="100vw"
               />
               <div className="relative z-10 flex flex-col items-center justify-center text-white h-full px-4 text-center text-shadow-lg">
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
-                  Nikmati Cita Rasa<br />Dimsum Rumahan<br />dengan Rasa Premium
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight whitespace-pre-line">
+                  {ownerData?.hero_title || "Nikmati Cita Rasa"}<br />
+                  {(ownerData?.hero_subtitle || "Dimsum Rumahan\ndengan Rasa Premium")
+                    .split('\n')
+                    .map((line, i) => (
+                      <span key={i}>{line}<br /></span>
+                    ))}
                 </h1>
                 <p className="text-lg md:text-xl mb-8 max-w-2xl text-shadow-lg">
                   Kami percaya rasa terbaik lahir dari sentuhan tangan dan ketulusan hati.
@@ -539,7 +598,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-
                   <div className="w-full max-w-md">
                     <div className="relative">
                       <input
@@ -586,7 +644,6 @@ export default function Home() {
                       : item.url_gambar || '/placeholder.jpg';
                     const isMatchSearch = searchQuery.trim() !== '' && 
                       item.nama_produk.toLowerCase().includes(searchQuery.toLowerCase());
-
                     return (
                       <div
                         key={item.id_produk}
@@ -603,12 +660,12 @@ export default function Home() {
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           />
                         </div>
-                        <div className="p-4 flex flex-col justify-between h-[160px]"> {/* <-- Tambahkan class ini */}
+                        <div className="p-4 flex flex-col justify-between h-[160px]">
                           <div>
                             <h3 className="text-xl font-semibold text-gray-900 mb-1">{item.nama_produk}</h3>
                             <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.deskripsi}</p>
                           </div>
-                          <div className="flex justify-center mt-auto"> {/* <-- Gunakan mt-auto untuk mendorong tombol ke bawah */}
+                          <div className="flex justify-center mt-auto">
                             <button
                               onClick={() => openVariantModal(item)}
                               className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95 cursor-pointer"
@@ -671,6 +728,14 @@ export default function Home() {
                         <div className="flex-grow">
                           <h3 className="font-semibold text-gray-900">{item.nama_produk}</h3>
                           <p className="text-sm text-gray-600">Varian {item.nama_varian}</p>
+                          {/* 🔹 Tampilkan add-ons di keranjang */}
+                          {item.add_ons?.length > 0 && (
+                            <div className="mt-1 text-xs text-gray-500 space-y-1">
+                              {item.add_ons.map((ao, idx) => (
+                                <div key={idx}>+ {ao.nama_add_on} ×{ao.jumlah}</div>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center justify-between mt-2">
                             <span className="font-bold text-[#A65C37]">{formatRupiah(item.harga)}</span>
                             <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-2 py-1">
@@ -704,13 +769,17 @@ export default function Home() {
                   <div className="lg:col-span-1">
                     <div className="hidden md:block bg-white p-6 rounded-lg shadow-sm sticky top-4">
                       <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Order</h2>
-                      
                       <div className="space-y-3 mb-4">
                         {cartItems.map(item => (
                           <div key={item.id} className="flex justify-between py-2 border-b border-gray-100">
                             <div className="flex flex-col">
                               <span className="font-medium">{item.nama_produk}</span>
                               <span className="text-sm text-gray-600">Varian: {item.nama_varian}</span>
+                              {item.add_ons?.map((ao, idx) => (
+                                <span key={idx} className="text-xs text-gray-500">
+                                  + {ao.nama_add_on} ×{ao.jumlah}
+                                </span>
+                              ))}
                               <span className="text-sm text-gray-600">Jumlah: x{item.jumlah}</span>
                             </div>
                             <div className="text-right">
@@ -720,7 +789,6 @@ export default function Home() {
                           </div>
                         ))}
                       </div>
-
                       <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex justify-between">
                           <span>Subtotal</span>
@@ -732,7 +800,6 @@ export default function Home() {
                           <span>{formatRupiah(total)}</span>
                         </div>
                       </div>
-
                       <button
                         onClick={openConfirmModal}
                         className="w-full mt-6 bg-[#A65C37] hover:bg-[#d36e3b] text-white font-medium py-3 rounded-full transition active:scale-95"
@@ -780,7 +847,6 @@ export default function Home() {
                               </svg>
                             </button>
                           </div>
-
                           <div className="p-4 max-h-[60vh] overflow-y-auto">
                             <div className="space-y-3 mb-4">
                               {cartItems.map((item) => (
@@ -788,8 +854,12 @@ export default function Home() {
                                   <div className="flex flex-col flex-1">
                                     <span className="font-medium text-sm text-gray-900">{item.nama_produk}</span>
                                     <span className="text-xs text-gray-600">Varian: {item.nama_varian}</span>
+                                    {item.add_ons?.map((ao, idx) => (
+                                      <span key={idx} className="text-xs text-gray-500">
+                                        + {ao.nama_add_on} ×{ao.jumlah}
+                                      </span>
+                                    ))}
                                     <span className="text-xs text-gray-500">x{item.jumlah}</span>
-                                    <span className="text-xs text-gray-500 mt-1">Harga/item: {formatRupiah(item.harga)}</span>
                                   </div>
                                   <div className="text-right ml-4">
                                     <span className="block font-medium text-sm text-[#A65C37]">
@@ -799,7 +869,6 @@ export default function Home() {
                                 </div>
                               ))}
                             </div>
-
                             <div className="pt-4 border-t border-gray-200">
                               <div className="flex justify-between text-sm mb-1">
                                 <span className="text-gray-700">Subtotal</span>
@@ -811,7 +880,6 @@ export default function Home() {
                               </div>
                             </div>
                           </div>
-
                           <div className="p-4 border-t border-gray-100 bg-gray-50">
                             <button
                               onClick={() => {
@@ -936,6 +1004,62 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* 🔹 Add-ons Section — hanya muncul jika ada add-ons & ada varian dipilih */}
+                  {modalAddOns.length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <h5 className="text-sm font-medium text-gray-600 mb-3">
+                        Tambahkan Pelengkap ({modalAddOns.length} pilihan)
+                      </h5>
+                      <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-2">
+                        {modalAddOns.map(addOn => (
+                          <div key={addOn.id_add_on} className="p-3 rounded-lg border border-gray-200 hover:bg-slate-50">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h5 className="font-medium text-gray-900">{addOn.nama_add_on}</h5>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  +{formatRupiah(addOn.harga_add_on)}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                {/* Tampilkan kontrol jumlah hanya untuk varian yang dipilih > 0 */}
+                                {Object.entries(selectedVariants).map(([id_varian, qty]) => {
+                                  if (qty > 0) {
+                                    const currentQty = (selectedAddOns[id_varian] || [])
+                                      .find(a => a.id_add_on === addOn.id_add_on)?.qty || 0;
+
+                                    return (
+                                      <div key={id_varian} className="mt-1">
+                                        <div className="text-xs text-gray-500 mb-1">
+                                          untuk {qty}× varian ini
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <button 
+                                            onClick={() => updateAddOnQuantity(id_varian, addOn.id_add_on, -1)} 
+                                            className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
+                                          >
+                                            −
+                                          </button>
+                                          <span className="w-6 text-center text-sm">{currentQty}</span>
+                                          <button 
+                                            onClick={() => updateAddOnQuantity(id_varian, addOn.id_add_on, 1)} 
+                                            className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {totalModalItems > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <div className="flex justify-between text-sm">
@@ -1016,14 +1140,12 @@ export default function Home() {
                   ✕
                 </button>
               </div>
-
               <form onSubmit={handleSubmitOrder} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
                 {formError && (
                   <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
                     {formError}
                   </div>
                 )}
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nama Lengkap *
@@ -1037,7 +1159,6 @@ export default function Home() {
                     required
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nomor WhatsApp *
@@ -1047,11 +1168,9 @@ export default function Home() {
                     value={pembeliData.nomer_pembeli}
                     onChange={e => {
                       const rawValue = e.target.value;
-                      // Opsional: batasi input ke angka, +, dan spasi/dash (atau biarkan bebas, tapi cek bersih saat validasi)
                       setPembeliData(prev => ({ ...prev, nomer_pembeli: rawValue }));
                     }}
                     onBlur={() => {
-                      // Saat blur, kita bisa bersihkan & normalisasi (opsional)
                       const cleaned = pembeliData.nomer_pembeli.replace(/\D/g, '');
                       if (cleaned.length >= 1 && cleaned.length < 12 && cleaned !== '') {
                         toast.error('Nomor WhatsApp minimal 12 digit angka.');
@@ -1074,7 +1193,6 @@ export default function Home() {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Alamat Lengkap *
@@ -1091,7 +1209,6 @@ export default function Home() {
                     Termasuk nama jalan, RT/RW, kelurahan, kecamatan, dan kota.
                   </p>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Pilih Metode Pengambilan *
@@ -1111,13 +1228,17 @@ export default function Home() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="bg-gray-50 p-3 rounded-lg text-sm">
                   <p className="font-medium text-gray-800 mb-1">Pesanan Anda:</p>
                   <ul className="space-y-1">
                     {cartItems.map(item => (
                       <li key={item.id} className="text-gray-700">
                         • {item.nama_produk} ({item.nama_varian}) ×{item.jumlah}
+                        {item.add_ons?.map(ao => (
+                          <span key={ao.id_add_on} className="block text-xs text-gray-600 ml-4 mt-0.5">
+                            + {ao.nama_add_on} ×{ao.jumlah}
+                          </span>
+                        ))}
                       </li>
                     ))}
                   </ul>
@@ -1125,7 +1246,6 @@ export default function Home() {
                     Total: {formatRupiah(total)}
                   </p>
                 </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting}
