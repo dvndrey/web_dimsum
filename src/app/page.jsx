@@ -8,6 +8,7 @@ import { getAddOnsByProduk } from '../../services/addOnService';
 import { getProduk } from '../../services/productService';
 import { getVarianByProduk } from '../../services/variantService';
 import { createOrder } from '../../services/orderService';
+import { getReadyDates } from '../../services/readyService';
 import {
   Select,
   SelectContent,
@@ -20,6 +21,9 @@ import { getOwnerData } from '../../services/ownService';
 // 🔹 Cache untuk data varian & add-ons
 const variantCache = new Map();
 const addOnCache = new Map();
+
+// 🔹 Cache untuk ready dates (mirip variantCache & addOnCache)
+const readyDateCache = new Map();
 
 export default function HomePage() {
   // 🔹 State navigasi
@@ -41,6 +45,9 @@ export default function HomePage() {
   const [modalLoading, setModalLoading] = useState(false);
   const [modalVariants, setModalVariants] = useState([]);
   const [selectedVariants, setSelectedVariants] = useState({});
+
+  // 🔹 Ready dates untuk produk yang dipilih
+  const [selectedProductReadyDates, setSelectedProductReadyDates] = useState([]);
 
   // 🔹 Modal add-ons (dipilih per varian)
   const [modalAddOns, setModalAddOns] = useState([]);
@@ -136,7 +143,7 @@ export default function HomePage() {
       setModalLoading(true);
       setSelectedProduct(product);
       setSelectedVariants({});
-      setSelectedAddOns({}); // reset add-ons tiap buka modal
+      setSelectedAddOns({});
 
       // 🔹 Ambil varian (pakai cache)
       let variants = variantCache.get(product.id_produk);
@@ -154,10 +161,18 @@ export default function HomePage() {
       }
       setModalAddOns(addOns);
 
+      // 🔹 🔹 🔹 AMBIL READY DATES — BARU!
+      let readyDates = readyDateCache.get(product.id_produk);
+      if (!readyDates) {
+        readyDates = await getReadyDates(product.id_produk);
+        readyDateCache.set(product.id_produk, readyDates);
+      }
+      setSelectedProductReadyDates(readyDates);
+
       setIsModalOpen(true);
     } catch (err) {
-      console.error('Gagal memuat varian atau add-ons:', err);
-      toast.error('Gagal memuat varian atau add-ons');
+      console.error('Gagal memuat varian/add-ons/ready dates:', err);
+      toast.error('Gagal memuat data produk');
     } finally {
       setModalLoading(false);
     }
@@ -168,6 +183,7 @@ export default function HomePage() {
     setSelectedProduct(null);
     setSelectedVariants({});
     setSelectedAddOns({});
+    setSelectedProductReadyDates([]);
   }, []);
 
   // ✅ Update jumlah varian di modal
@@ -946,13 +962,50 @@ export default function HomePage() {
                   </div>
                   <h4 className="text-lg font-bold mb-2">{selectedProduct.nama_produk}</h4>
                   {selectedProduct.deskripsi && <p className="text-sm text-gray-700 text-center md:text-left mb-4">{selectedProduct.deskripsi}</p>}
-                </div>
 
+                  {/* 🔹 TANGGAL READY — DI BAWAH DESKRIPSI */}
+                  {selectedProductReadyDates.length > 0 && (
+                    <div className="mt-2">
+                      <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                        {selectedProductReadyDates
+                          .map(d => ({
+                            ...d,
+                            dateObj: new Date(d.tanggal)
+                          }))
+                          .sort((a, b) => a.dateObj - b.dateObj)
+                          .map((item, idx) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const isPast = item.dateObj < today;
+
+                            // Format: Sen, 27 Nov
+                            const formatted = item.dateObj.toLocaleDateString('id-ID', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short'
+                            });
+
+                            return (
+                              <span
+                                key={item.id_ready || idx}
+                                className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${
+                                  isPast
+                                    ? 'bg-red-100 text-red-800 line-through'
+                                    : 'bg-green-100 text-green-800'
+                                }`}
+                              >
+                                📅 {formatted}
+                              </span>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="flex-grow p-4 border-t md:border-l border-gray-200">
                   <h5 className="text-sm font-medium text-gray-600 mb-3">
                     {modalLoading ? 'Memuat varian...' : `Varian (${modalVariants.length})`}
                   </h5>
-
                   {modalLoading ? (
                     <div className="flex justify-center py-6">
                       <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#A65C37] border-r-transparent"></div>
@@ -964,7 +1017,6 @@ export default function HomePage() {
                       {modalVariants.map(variant => {
                         const qty = selectedVariants[variant.id_varian] || 0;
                         const addOnsForThisVariant = selectedAddOns[variant.id_varian] || {};
-
                         return (
                           <div key={variant.id_varian} className={`p-3 rounded-lg border transition-all ${
                             variant.stok_varian <= 0 
@@ -1265,8 +1317,7 @@ export default function HomePage() {
           </div>
         </>
       )}
-
       <Footer />
     </div>
-  );
+  )
 }
