@@ -5,10 +5,17 @@ import { uploadImage } from "./storage";
 export async function getProduk() {
   const { data, error } = await supabase
     .from("produk")
-    .select("*, kategori(nama_kategori), varian(*)");
+    .select(`
+      *,
+      kategori(nama_kategori),
+      varian(*),
+      produk_ready_date(tanggal)
+    `);
+
   if (error) throw error;
   return data;
 }
+
 
 // tambah produk
 export async function addProduk(nama, deskripsi, id_kategori, files) {
