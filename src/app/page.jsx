@@ -44,7 +44,7 @@ export default function HomePage() {
 
   // 🔹 Modal add-ons (dipilih per varian)
   const [modalAddOns, setModalAddOns] = useState([]);
-  const [selectedAddOns, setSelectedAddOns] = useState({}); // { id_varian: [{id_add_on, qty}] }
+  const [selectedAddOns, setSelectedAddOns] = useState({}); // { id_varian: { id_add_on: jumlah } }
 
   // 🔹 Modal gambar
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -185,33 +185,25 @@ export default function HomePage() {
     });
   }, []);
 
-  // ✅ Update jumlah add-on per varian
+  // ✅ Update jumlah add-on per varian (maks 1 per jenis)
   const updateAddOnQuantity = useCallback((id_varian, id_add_on, change) => {
     setSelectedAddOns(prev => {
-      const current = prev[id_varian] || [];
-      const existing = current.find(a => a.id_add_on === id_add_on);
-      let newAddOns;
+      const current = prev[id_varian] || {};
+      let newQty = (current[id_add_on] || 0) + change;
 
-      if (existing) {
-        const newQty = Math.max(0, existing.qty + change);
-        if (newQty === 0) {
-          newAddOns = current.filter(a => a.id_add_on !== id_add_on);
-        } else {
-          newAddOns = current.map(a =>
-            a.id_add_on === id_add_on ? { ...a, qty: newQty } : a
-          );
-        }
-      } else if (change > 0) {
-        newAddOns = [...current, { id_add_on, qty: change }];
-      } else {
-        newAddOns = current;
-      }
+      // Batas maksimal 1 per jenis add-on
+      if (newQty < 0) newQty = 0;
+      if (newQty > 1) newQty = 1;
 
       const newState = { ...prev };
-      if (newAddOns.length === 0) {
-        delete newState[id_varian];
+      if (newQty === 0) {
+        // Hapus jika 0
+        const updated = { ...current };
+        delete updated[id_add_on];
+        newState[id_varian] = Object.keys(updated).length > 0 ? updated : undefined;
       } else {
-        newState[id_varian] = newAddOns;
+        // Simpan qty
+        newState[id_varian] = { ...current, [id_add_on]: newQty };
       }
       return newState;
     });
@@ -227,16 +219,18 @@ export default function HomePage() {
     const newItems = Object.entries(selectedVariants).map(([id_varian, qty]) => {
       const variant = modalVariants.find(v => v.id_varian == id_varian);
       
-      // 🔹 Ambil add-ons untuk varian ini
-      const addOnsForThisVariant = (selectedAddOns[id_varian] || []).map(ao => {
-        const aoMeta = modalAddOns.find(a => a.id_add_on === ao.id_add_on);
-        return {
-          id_add_on: ao.id_add_on,
-          nama_add_on: aoMeta?.nama_add_on || '',
-          harga_add_on: aoMeta?.harga_add_on || 0,
-          jumlah: ao.qty
-        };
-      });
+      // 🔹 Ambil add-ons untuk varian ini — dari struktur { id_add_on: jumlah }
+      const addOnsForThisVariant = Object.entries(selectedAddOns[id_varian] || {})
+        .filter(([_, q]) => q > 0) // hanya yang qty > 0
+        .map(([id_add_on, jumlah]) => {
+          const aoMeta = modalAddOns.find(a => a.id_add_on === id_add_on);
+          return {
+            id_add_on: id_add_on,
+            nama_add_on: aoMeta?.nama_add_on || '',
+            harga_add_on: aoMeta?.harga_add_on || 0,
+            jumlah: jumlah // selalu 1, karena kita batasi max 1
+          };
+        });
 
       // ✅ Hitung subtotal termasuk add-ons
       let hargaDasar = variant?.harga_varian || 0;
@@ -252,10 +246,11 @@ export default function HomePage() {
         url_gambar: Array.isArray(selectedProduct.url_gambar)
           ? selectedProduct.url_gambar[0]
           : selectedProduct.url_gambar || '/placeholder.jpg',
-        harga: hargaDasar,
+        harga: hargaDasar, // harga dasar varian
         jumlah: qty,
         subtotal: hargaTotalPerItem * qty,
-        add_ons: addOnsForThisVariant // 🔹 simpan add-ons
+        // 🔹 Simpan add-ons
+        add_ons: addOnsForThisVariant // array
       };
     });
 
@@ -775,11 +770,13 @@ export default function HomePage() {
                             <div className="flex flex-col">
                               <span className="font-medium">{item.nama_produk}</span>
                               <span className="text-sm text-gray-600">Varian: {item.nama_varian}</span>
-                              {item.add_ons?.map((ao, idx) => (
-                                <span key={idx} className="text-xs text-gray-500">
-                                  + {ao.nama_add_on} ×{ao.jumlah}
-                                </span>
-                              ))}
+                                {item.add_ons?.length > 0 && (
+                                  <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                    {item.add_ons.map((ao, idx) => (
+                                      <div key={idx}>+ {ao.nama_add_on} ×{ao.jumlah}</div>
+                                    ))}
+                                  </div>
+                                )}
                               <span className="text-sm text-gray-600">Jumlah: x{item.jumlah}</span>
                             </div>
                             <div className="text-right">
@@ -854,11 +851,13 @@ export default function HomePage() {
                                   <div className="flex flex-col flex-1">
                                     <span className="font-medium text-sm text-gray-900">{item.nama_produk}</span>
                                     <span className="text-xs text-gray-600">Varian: {item.nama_varian}</span>
-                                    {item.add_ons?.map((ao, idx) => (
-                                      <span key={idx} className="text-xs text-gray-500">
-                                        + {ao.nama_add_on} ×{ao.jumlah}
-                                      </span>
-                                    ))}
+                                      {item.add_ons?.length > 0 && (
+                                        <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                          {item.add_ons.map((ao, idx) => (
+                                            <div key={idx}>+ {ao.nama_add_on} ×{ao.jumlah}</div>
+                                          ))}
+                                        </div>
+                                      )}
                                     <span className="text-xs text-gray-500">x{item.jumlah}</span>
                                   </div>
                                   <div className="text-right ml-4">
@@ -964,10 +963,15 @@ export default function HomePage() {
                     <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
                       {modalVariants.map(variant => {
                         const qty = selectedVariants[variant.id_varian] || 0;
+                        const addOnsForThisVariant = selectedAddOns[variant.id_varian] || {};
+
                         return (
                           <div key={variant.id_varian} className={`p-3 rounded-lg border transition-all ${
-                            variant.stok_varian <= 0 ? 'bg-gray-100 border-gray-300 text-gray-500' :
-                            qty > 0 ? 'bg-[#ededed] border-[#d36e3b]' : 'border-gray-200 hover:bg-slate-200'
+                            variant.stok_varian <= 0 
+                              ? 'bg-gray-100 border-gray-300 text-gray-500' 
+                              : qty > 0 
+                                ? 'bg-[#ededed] border-[#d36e3b]' 
+                                : 'border-gray-200 hover:bg-slate-200'
                           }`}>
                             <div className="flex justify-between">
                               <div>
@@ -998,65 +1002,54 @@ export default function HomePage() {
                                 )}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
 
-                  {/* 🔹 Add-ons Section — hanya muncul jika ada add-ons & ada varian dipilih */}
-                  {modalAddOns.length > 0 && (
-                    <div className="mt-6 pt-4 border-t border-gray-200">
-                      <h5 className="text-sm font-medium text-gray-600 mb-3">
-                        Tambahkan Pelengkap ({modalAddOns.length} pilihan)
-                      </h5>
-                      <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-2">
-                        {modalAddOns.map(addOn => (
-                          <div key={addOn.id_add_on} className="p-3 rounded-lg border border-gray-200 hover:bg-slate-50">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h5 className="font-medium text-gray-900">{addOn.nama_add_on}</h5>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  +{formatRupiah(addOn.harga_add_on)}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                {/* Tampilkan kontrol jumlah hanya untuk varian yang dipilih > 0 */}
-                                {Object.entries(selectedVariants).map(([id_varian, qty]) => {
-                                  if (qty > 0) {
-                                    const currentQty = (selectedAddOns[id_varian] || [])
-                                      .find(a => a.id_add_on === addOn.id_add_on)?.qty || 0;
+                            {/* ✅ Add-ons Section — HANYA DI SINI (langsung di bawah tombol +/-) */}
+                            {qty > 0 && modalAddOns.length > 0 && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <h6 className="text-sm font-medium text-gray-600 mb-2">
+                                  Tambahkan Pelengkap (1 pilihan)
+                                </h6>
+                                <div className="space-y-2">
+                                  {modalAddOns.map(addOn => {
+                                    // ✅ Gunakan akses object langsung — TIDAK PAKAI .find()
+                                    const currentQty = addOnsForThisVariant[addOn.id_add_on] || 0;
 
                                     return (
-                                      <div key={id_varian} className="mt-1">
-                                        <div className="text-xs text-gray-500 mb-1">
-                                          untuk {qty}× varian ini
+                                      <div key={addOn.id_add_on} className="flex justify-between items-center py-1">
+                                        <div className="flex-1">
+                                          <h6 className="font-medium text-gray-900">{addOn.nama_add_on}</h6>
+                                          <p className="text-xs text-gray-500">+{formatRupiah(addOn.harga_add_on)}</p>
                                         </div>
                                         <div className="flex items-center gap-1">
                                           <button 
-                                            onClick={() => updateAddOnQuantity(id_varian, addOn.id_add_on, -1)} 
-                                            className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
+                                            onClick={() => updateAddOnQuantity(variant.id_varian, addOn.id_add_on, -1)} 
+                                            className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${
+                                              currentQty === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                                            }`}
+                                            disabled={currentQty === 0}
                                           >
                                             −
                                           </button>
-                                          <span className="w-6 text-center text-sm">{currentQty}</span>
+                                          <span className="w-6 text-center">{currentQty}</span>
                                           <button 
-                                            onClick={() => updateAddOnQuantity(id_varian, addOn.id_add_on, 1)} 
-                                            className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
+                                            onClick={() => updateAddOnQuantity(variant.id_varian, addOn.id_add_on, 1)} 
+                                            className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${
+                                              currentQty >= 1 ? 'opacity-50 cursor-not-allowed' : ''
+                                            }`}
+                                            disabled={currentQty >= 1}
                                           >
                                             +
                                           </button>
                                         </div>
                                       </div>
                                     );
-                                  }
-                                  return null;
-                                })}
+                                  })}
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
 
