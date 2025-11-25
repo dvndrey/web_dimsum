@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
+import { Calendar as CalendarIcon } from "lucide-react";
 
 // Add-ons services
 import {
@@ -71,6 +72,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 
+// 🔹 Import untuk ready dates
+import {
+  getReadyDates,
+  addReadyDate,
+  deleteReadyDate
+} from "../../../services/readyService";
+
+// 🔹 Import DayPicker
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css'
+
 export default function ProdukTab() {
   const [produk, setProduk] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -78,6 +90,7 @@ export default function ProdukTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [viewMode, setViewMode] = useState("grid");
+  
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduk, setEditingProduk] = useState(null);
@@ -98,6 +111,11 @@ export default function ProdukTab() {
     stok: ""
   });
 
+  // 🔹 State untuk ready dates modal & selection
+  const [showReadyDateModal, setShowReadyDateModal] = useState(false);
+  const [readyDates, setReadyDates] = useState([]); // [{ id_ready, tanggal }, ...]
+  const [selectedReadyDates, setSelectedReadyDates] = useState([]); // Date[] (untuk kalender)
+
   // 🔹 Add-ons state
   const [addOnList, setAddOnList] = useState([]);
   const [addOnForm, setAddOnForm] = useState({ nama: "", harga: "" });
@@ -105,6 +123,20 @@ export default function ProdukTab() {
 
   const [imagePreviews, setImagePreviews] = useState([]); 
   const [existingImages, setExistingImages] = useState([]);
+
+  // 🔹 Helper: convert "YYYY-MM-DD" ↔ Date (tanpa jam, timezone-safe)
+  const parseDate = (str) => {
+    if (!str) return null;
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d); // month is 0-indexed
+  };
+  const formatDate = (date) => {
+    if (!date) return '';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   useEffect(() => {
     loadAll();
@@ -195,6 +227,73 @@ export default function ProdukTab() {
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Gagal menghapus produk");
+    }
+  }
+
+  // 🔹 Buka modal atur tanggal ready untuk produk terpilih
+  async function openReadyDateModal(p) {
+    setSelectedProduk(p);
+    try {
+      const dates = await getReadyDates(p.id_produk);
+      setReadyDates(dates);
+      // Convert ke array Date untuk kalender
+      const dateObjects = dates.map(d => parseDate(d.tanggal)).filter(Boolean);
+      setSelectedReadyDates(dateObjects);
+      setShowReadyDateModal(true);
+    } catch (err) {
+      console.error('Gagal memuat tanggal ready:', err);
+      toast.error('Gagal memuat tanggal ready');
+    }
+  }
+
+  // 🔹 Simpan perubahan tanggal ready
+  async function applyReadyDates() {
+    if (!selectedProduk) return;
+
+    try {
+      const currentIds = new Set(readyDates.map(d => d.id_ready));
+      const selectedStrings = selectedReadyDates.map(formatDate);
+      const selectedSet = new Set(selectedStrings);
+
+      // ❗ Hanya tanggal ≥ hari ini (client-side validation extra)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const invalidDates = selectedReadyDates.filter(date => date < today);
+      if (invalidDates.length > 0) {
+        toast.error('Tanggal harus di masa depan atau hari ini');
+        return;
+      }
+
+      // 🔹 Cari yang perlu ditambah
+      const toAdd = selectedStrings.filter(dateStr => {
+        return !readyDates.some(d => d.tanggal === dateStr);
+      });
+
+      // 🔹 Cari yang perlu dihapus
+      const toDelete = readyDates.filter(d => !selectedSet.has(d.tanggal));
+
+      // 🔹 Eksekusi parallel
+      const promises = [];
+
+      toAdd.forEach(dateStr => {
+        promises.push(addReadyDate(selectedProduk.id_produk, dateStr));
+      });
+
+      toDelete.forEach(d => {
+        promises.push(deleteReadyDate(d.id_ready));
+      });
+
+      await Promise.all(promises);
+
+      // 🔹 Refetch & update state
+      const updated = await getReadyDates(selectedProduk.id_produk);
+      setReadyDates(updated);
+      toast.success('Tanggal ready berhasil diperbarui');
+      setShowReadyDateModal(false);
+
+    } catch (err) {
+      console.error('Gagal menyimpan tanggal ready:', err);
+      toast.error(err.message || 'Gagal menyimpan tanggal ready');
     }
   }
   
@@ -943,6 +1042,64 @@ export default function ProdukTab() {
               </form>
             </div>
 
+            {/* ===== ATUR TANGGAL READY SECTION ===== */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  Tanggal Ready ({readyDates.length})
+                </h4>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  onClick={() => {
+                    // ✅ Hindari ambil dari state yang mungkin belum update
+                    if (!selectedProduk) {
+                      toast.error('Produk tidak ditemukan');
+                      return;
+                    }
+                    openReadyDateModal(selectedProduk);
+                  }}
+                >
+                  <Settings className="h-3 w-3 mr-1" />
+                  Atur Tanggal
+                </Button>
+              </div>
+
+              {readyDates.length === 0 ? (
+                <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                  Belum ada tanggal ready diatur. Produk tidak akan muncul di menu sampai ada tanggal ready di masa depan.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {readyDates
+                    .map(d => parseDate(d.tanggal))
+                    .sort((a, b) => a - b)
+                    .map((date, i) => {
+                      const isPast = date < new Date().setHours(0, 0, 0, 0);
+                      return (
+                        <Badge
+                          key={i}
+                          variant={isPast ? "destructive" : "default"}
+                          className={`text-xs px-2 py-1 ${
+                            isPast 
+                              ? "bg-red-100 text-red-800 hover:bg-red-200" 
+                              : "bg-green-100 text-green-800 hover:bg-green-200"
+                          }`}
+                        >
+                          {date.toLocaleDateString('id-ID', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short'
+                          })}
+                        </Badge>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
             {/* ===== TAMBAH VARIAN BARU ===== */}
             <div className="border-t pt-6">
               <h4 className="font-medium mb-4 text-gray-900 dark:text-white">Tambah Varian Baru</h4>
@@ -993,6 +1150,72 @@ export default function ProdukTab() {
               </form>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* 🔹 Modal: Atur Tanggal Ready */}
+      <Dialog open={showReadyDateModal} onOpenChange={setShowReadyDateModal}>
+        <DialogContent className="sm:max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-blue-600" />
+              Atur Tanggal Ready
+            </DialogTitle>
+            <p className="text-sm text-gray-500">
+              Pilih satu atau lebih tanggal di masa depan
+            </p>
+          </DialogHeader>
+
+          <div className="py-4">
+            <DayPicker
+              mode="multiple"
+              selected={selectedReadyDates}
+              onSelect={setSelectedReadyDates}
+              // ❗ Disable tanggal masa lalu & hari ini (bolehkan hari ini)
+              disabled={{ before: new Date() }}
+              // Styling Tailwind (opsional — override default)
+              classNames={{
+                caption: 'flex justify-center py-2 mb-2 relative items-center',
+                nav: 'flex gap-2',
+                nav_button_previous: 'rounded-full p-1 hover:bg-gray-100',
+                nav_button_next: 'rounded-full p-1 hover:bg-gray-100',
+                table: 'w-full border-collapse',
+                head_row: 'border-b',
+                head_cell: 'text-gray-500 font-normal text-[0.8rem]',
+                row: 'w-full',
+                cell: 'text-center text-[0.75rem] p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+                day: 'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
+                day_selected:
+                  'bg-[#A65C37] text-white hover:bg-[#A65C37]',
+                day_outside: 'text-gray-400',
+                day_disabled: 'text-gray-400 opacity-50 cursor-not-allowed',
+                caption_label: 'text-sm font-medium',
+              }}
+              footer={
+                selectedReadyDates.length > 0 ? (
+                  <div className="mt-2 text-sm text-gray-700">
+                    Terpilih: {selectedReadyDates.length} tanggal
+                  </div>
+                ) : null
+              }
+            />
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowReadyDateModal(false)}
+              className="bg-gray-100"
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={applyReadyDates}
+              className="bg-[#A65C37] hover:bg-[#7f4629] text-white"
+            >
+              Apply
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
