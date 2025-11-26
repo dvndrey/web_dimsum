@@ -87,7 +87,7 @@ export default function HomePage() {
           getOwnerData()
         ]);
         setProduk(produkData);
-        setOwnerData(ownerData);
+        setOwnerData(ownerData); //done
 
         // 🔹 Prefetch varian & add-ons untuk 3 produk pertama (optimasi)
         if (produkData.length > 0) {
@@ -463,17 +463,25 @@ export default function HomePage() {
                 sizes="100vw"
               />
               <div className="relative z-10 flex flex-col items-center justify-center text-white h-full px-4 text-center text-shadow-lg">
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight whitespace-pre-line">
-                  {ownerData?.hero_title || "Nikmati Cita Rasa"}<br />
-                  {(ownerData?.hero_subtitle || "Dimsum Rumahan\ndengan Rasa Premium")
-                    .split('\n')
-                    .map((line, i) => (
-                      <span key={i}>{line}<br /></span>
-                    ))}
-                </h1>
-                <p className="text-lg md:text-xl mb-8 max-w-2xl text-shadow-lg">
-                  Kami percaya rasa terbaik lahir dari sentuhan tangan dan ketulusan hati.
-                </p>
+                  <h1 className="text-4xl md:text-5xl lg:text-6xl mb-4 leading-tight whitespace-pre-line">
+
+                    {/* 🔹 Title — bold */}
+                    <span className="font-bold">
+                      {ownerData?.hero_title || "Nikmati Cita Rasa"}
+                    </span>
+                    <br />
+
+                    {/* 🔹 Subtitle — tidak bold */}
+                    {(ownerData?.hero_subtitle || "Dimsum Rumahan\n dengan Rasa Premium")
+                      .split('\n')
+                      .map((line, i) => (
+                        <span key={i} className="font-normal"> {/* ✅ font-normal */}
+                          {line}
+                          <br />
+                        </span>
+                      ))}
+                      
+                  </h1>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={() => switchView('menu')}

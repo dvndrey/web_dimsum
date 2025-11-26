@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function SettingsTab() {
   const [form, setForm] = useState({
@@ -22,6 +23,8 @@ export default function SettingsTab() {
     email: "",
     alamat: "",
     no_hp: "",
+    hero_title: "", //Custom text on hero banner
+    hero_subtitle: "",
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,6 +42,8 @@ export default function SettingsTab() {
         email: data.email || "",
         alamat: data.alamat || "",
         no_hp: data.no_hp || "",
+        hero_title: data.hero_title || "",   // 🔹 Tambahkan ini
+        hero_subtitle: data.hero_subtitle || "" // 🔹 Tambahkan ini
       });
     } catch (err) {
       toast.error("Gagal memuat profil toko");
@@ -124,6 +129,40 @@ export default function SettingsTab() {
                 className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
+            </div>
+
+            {/* Hero Title */}
+            <div className="space-y-2">
+              <Label htmlFor="hero_title" className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+                <Store className="h-4 w-4 text-gray-500" />
+                Judul Hero Banner
+              </Label>
+              <Input
+                id="hero_title"
+                name="hero_title"
+                value={form.hero_title}
+                onChange={handleChange}
+                placeholder="Contoh: Nikmati Cita Rasa"
+                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Hero Subtitle */}
+            <div className="space-y-2">
+              <Label htmlFor="hero_subtitle" className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+                <Store className="h-4 w-4 text-gray-500" />
+                Subjudul Hero Banner (boleh pakai enter)
+              </Label>
+              <Textarea
+                id="hero_subtitle"
+                name="hero_subtitle"
+                value={form.hero_subtitle}
+                onChange={handleChange}
+                placeholder={`Contoh: Dimsum Rumahan\n dengan Rasa Premium`}
+                rows={3}
+                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500">Gunakan '\n' untuk membuat baris baru.</p>
             </div>
 
             <Separator className="my-5" />
