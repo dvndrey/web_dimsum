@@ -810,12 +810,7 @@ export default function HomePage() {
                           </div>
                         ))}
                       </div>
-                      <div className="space-y-3 pt-4 border-t border-gray-200">
-                        <div className="flex justify-between">
-                          <span>Subtotal</span>
-                          <span className="font-bold">{formatRupiah(subtotal)}</span>
-                        </div>
-                        <hr className="border-gray-200" />
+                      <div className="space-y-3 pt-4">
                         <div className="flex justify-between text-lg font-bold">
                           <span>Total</span>
                           <span>{formatRupiah(total)}</span>
