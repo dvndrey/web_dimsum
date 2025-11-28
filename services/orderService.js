@@ -13,16 +13,7 @@ import { supabase } from "../lib/supabase";
  */
 
 export async function createOrder(pembeliData, cartItems) {
-  const { data: readyDates } = await supabase
-    .from("produk_ready_date")
-    .select("tanggal")
-    .eq("id_produk", item.id_produk);
 
-  const allowed = readyDates.map(r => r.tanggal);
-
-  if (!allowed.includes(item.tanggal_pesanan)) {
-    throw new Error(`Produk tidak ready pada tanggal ${item.tanggal_pesanan}`);
-  }
 
   const { nama_pembeli, alamat_pembeli, nomer_pembeli } = pembeliData;
 
