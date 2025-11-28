@@ -50,7 +50,9 @@ import {
   Grid3X3,
   List,
   Eye,
-  Upload
+  Upload,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import {
   Select,
@@ -80,8 +82,45 @@ import {
 } from "../../../services/readyService";
 
 // 🔹 Import DayPicker
-import { DayPicker } from 'react-day-picker';
+import { DayPicker, useNavigation } from 'react-day-picker';
 import 'react-day-picker/style.css'
+
+function CustomCalendarFooter(props) {
+  const { goToMonth, nextMonth, previousMonth } = useNavigation();
+  return (
+    <div className="mt-4">
+      {/* Render original footer content (selected count) */}
+      {props.footer}
+      
+      {/* Bottom Navigation */}
+      <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+        <Button 
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => previousMonth && goToMonth(previousMonth)}
+          disabled={!previousMonth}
+          className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+        >
+          <ChevronLeft className="h-5 w-5 mr-1" />
+          Prev
+        </Button>
+        
+        <Button 
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => nextMonth && goToMonth(nextMonth)}
+          disabled={!nextMonth}
+          className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+        >
+          Next
+          <ChevronRight className="h-5 w-5 ml-1" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function ProdukTab() {
   const [produk, setProduk] = useState([]);
@@ -1072,7 +1111,7 @@ export default function ProdukTab() {
                   Belum ada tanggal ready diatur. Produk tidak akan muncul di menu sampai ada tanggal ready di masa depan.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {readyDates
                     .map(d => parseDate(d.tanggal))
                     .sort((a, b) => a - b)
@@ -1170,32 +1209,46 @@ export default function ProdukTab() {
               mode="multiple"
               selected={selectedReadyDates}
               onSelect={setSelectedReadyDates}
-              // ❗ Disable tanggal masa lalu & hari ini (bolehkan hari ini)
-              disabled={{ before: new Date() }}
-              // Styling Tailwind (opsional — override default)
+              // ❗ Disable tanggal masa lalu KECUALI yang sudah terpilih (supaya bisa di-unselect)
+              disabled={(date) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                // Disable jika tanggal < hari ini DAN tidak ada di list selected
+                // (Artinya: tanggal masa lalu yang SUDAH terpilih tetap ENABLED supaya bisa diklik untuk unselect)
+                return date < today && !selectedReadyDates.some(d => d.getTime() === date.getTime());
+              }}
+              // Styling Tailwind yang lebih rapi
+              components={{
+                Footer: CustomCalendarFooter
+              }}
+              // Styling Tailwind yang lebih rapi
               classNames={{
-                caption: 'flex justify-center py-2 mb-2 relative items-center',
-                nav: 'flex gap-2',
-                nav_button_previous: 'rounded-full p-1 hover:bg-gray-100',
-                nav_button_next: 'rounded-full p-1 hover:bg-gray-100',
-                table: 'w-full border-collapse',
-                head_row: 'border-b',
-                head_cell: 'text-gray-500 font-normal text-[0.8rem]',
-                row: 'w-full',
-                cell: 'text-center text-[0.75rem] p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
-                day: 'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
-                day_selected:
-                  'bg-[#A65C37] text-white hover:bg-[#A65C37]',
-                day_outside: 'text-gray-400',
-                day_disabled: 'text-gray-400 opacity-50 cursor-not-allowed',
+                months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
+                month: 'space-y-4',
+                caption: 'flex justify-center pt-1 relative items-center w-full',
                 caption_label: 'text-sm font-medium',
+                nav: 'hidden', // Hide default navigation
+                table: 'w-full border-collapse space-y-1',
+                head_row: 'flex',
+                head_cell: 'text-gray-500 rounded-md w-9 font-normal text-[0.8rem]',
+                row: 'flex w-full mt-2',
+                cell: 'text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+                day: 'h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-gray-100 rounded-md',
+                day_selected:
+                  'bg-[#A65C37] text-white hover:bg-[#A65C37] hover:text-white focus:bg-[#A65C37] focus:text-white',
+                day_today: 'bg-gray-100 text-gray-900',
+                day_outside: 'text-gray-300 opacity-50',
+                day_disabled: 'text-gray-300 opacity-50',
+                day_range_middle: 'aria-selected:bg-accent aria-selected:text-accent-foreground',
+                day_hidden: 'invisible',
               }}
               footer={
-                selectedReadyDates.length > 0 ? (
-                  <div className="mt-2 text-sm text-gray-700">
-                    Terpilih: {selectedReadyDates.length} tanggal
-                  </div>
-                ) : null
+                <div className="mt-4 text-sm text-center text-gray-700 font-medium min-h-[20px]">
+                  {selectedReadyDates.length > 0 
+                    ? `${selectedReadyDates.length} tanggal dipilih` 
+                    : ""
+                  }
+                </div>
               }
             />
           </div>
