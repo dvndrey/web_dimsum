@@ -13,3 +13,32 @@ export async function uploadImage(file) {
     const {data: { publicUrl }} = supabase.storage.from("gambar_menu").getPublicUrl(fileName);
     return publicUrl;
 }
+
+// fungsi buat hapus gambar dari storage
+export async function deleteImages(urls) {
+    if (!urls || urls.length === 0) return;
+
+    const fileNames = urls
+        .map(url => {
+            try {
+                const urlObj = new URL(url);
+                const pathParts = urlObj.pathname.split('/');
+                return pathParts[pathParts.length - 1];
+            } catch (e) {
+                const parts = url.split('/');
+                return parts[parts.length - 1];
+            }
+        })
+        .filter(Boolean);
+
+    if (fileNames.length > 0) {
+        const { error } = await supabase.storage
+            .from('gambar_menu')
+            .remove(fileNames);
+        
+        if (error) {
+            console.error('Error deleting images:', error);
+            throw error;
+        }
+    }
+}

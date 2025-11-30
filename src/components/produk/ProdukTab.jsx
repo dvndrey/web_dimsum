@@ -130,6 +130,9 @@ export default function ProdukTab() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [viewMode, setViewMode] = useState("grid");
   
+  const [deletingProdukId, setDeletingProdukId] = useState(null);
+  // 🔹 Tambah state untuk loading submit produk
+  const [submittingProduk, setSubmittingProduk] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduk, setEditingProduk] = useState(null);
@@ -155,10 +158,14 @@ export default function ProdukTab() {
   const [readyDates, setReadyDates] = useState([]); // [{ id_ready, tanggal }, ...]
   const [selectedReadyDates, setSelectedReadyDates] = useState([]); // Date[] (untuk kalender)
 
-  // 🔹 Add-ons state
+  // 🔹 Add-ons state - MODAL TERPISAH
+  const [showAddOnModal, setShowAddOnModal] = useState(false);
   const [addOnList, setAddOnList] = useState([]);
   const [addOnForm, setAddOnForm] = useState({ nama: "", harga: "" });
   const [editingAddOn, setEditingAddOn] = useState(null);
+
+  // 🔹 Variant state - MODAL TERPISAH
+  const [showVariantModalForm, setShowVariantModalForm] = useState(false);
 
   const [imagePreviews, setImagePreviews] = useState([]); 
   const [existingImages, setExistingImages] = useState([]);
@@ -216,7 +223,10 @@ export default function ProdukTab() {
   
   function handleFileChange(e) {
     const files = Array.from(e.target.files);
-    setExistingImages([]); 
+    // Jangan reset existingImages saat edit, hanya saat tambah baru
+    if (!editingProduk) {
+      setExistingImages([]);
+    }
     setImagePreviews(files.map(file => URL.createObjectURL(file)));
   }
 
@@ -236,15 +246,35 @@ export default function ProdukTab() {
   
   async function submitProduk(e) {
     e.preventDefault();
+    setSubmittingProduk(true); // Mulai loading
+    
     const nama = namaRef.current.value.trim();
     const deskripsi = descRef.current.value.trim();
     const id_kategori = categoryRef.current.value;
     const files = filesRef.current.files ? Array.from(filesRef.current.files) : [];
-    if (!nama) return toast.error("Nama produk wajib diisi");
-    if (!id_kategori) return toast.error("Pilih kategori");
+    
+    if (!nama) {
+      toast.error("Nama produk wajib diisi");
+      setSubmittingProduk(false);
+      return;
+    }
+    if (!id_kategori) {
+      toast.error("Pilih kategori");
+      setSubmittingProduk(false);
+      return;
+    }
+    
     try {
       if (editingProduk) {
-        await updateProduk(editingProduk.id_produk, nama, deskripsi, id_kategori, files);
+        // 🔹 Kirim existingImages ke updateProduk untuk dihapus jika ada gambar baru
+        await updateProduk(
+          editingProduk.id_produk, 
+          nama, 
+          deskripsi, 
+          id_kategori, 
+          files,
+          existingImages // Kirim gambar lama untuk dihapus
+        );
         toast.success("Produk berhasil diperbarui");
       } else {
         await addProduk(nama, deskripsi, id_kategori, files);
@@ -255,10 +285,13 @@ export default function ProdukTab() {
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Gagal menyimpan produk");
+    } finally {
+      setSubmittingProduk(false); // Selesai loading
     }
   }
   
   async function handleDeleteProduk(id) {
+    setDeletingProdukId(id);
     try {
       await deleteProduk(id);
       toast.success("Produk berhasil dihapus");
@@ -266,6 +299,8 @@ export default function ProdukTab() {
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Gagal menghapus produk");
+    } finally {
+      setDeletingProdukId(null);
     }
   }
 
@@ -336,25 +371,51 @@ export default function ProdukTab() {
     }
   }
   
+  // 🔹 Buka modal variant settings - DIPERBAIKI: load semua data sekaligus
   async function openVarian(p) {
     setSelectedProduk(p);
     setShowVariantModal(true);
     setEditingVarian(null);
-    setEditingAddOn(null); // reset
     setVariantForm({ nama: "", harga: "", stok: "" });
-    setAddOnForm({ nama: "", harga: "" }); // reset form add-on
     
     try {
-      const [v, a] = await Promise.all([
+      const [v, a, dates] = await Promise.all([
         getVarianByProduk(p.id_produk),
-        getAddOnsByProduk(p.id_produk)
+        getAddOnsByProduk(p.id_produk),
+        getReadyDates(p.id_produk)
       ]);
       setVarianList(v || []);
       setAddOnList(a || []);
+      setReadyDates(dates || []); // 🔹 Load tanggal ready langsung
     } catch (err) {
       console.error(err);
-      toast.error("Gagal memuat varian atau add-ons");
+      toast.error("Gagal memuat data settings");
     }
+  }
+
+  // 🔹 Buka modal add-ons terpisah
+  async function openAddOnModal() {
+    setShowAddOnModal(true);
+    setEditingAddOn(null);
+    setAddOnForm({ nama: "", harga: "" });
+  }
+
+  // 🔹 Buka modal variant terpisah
+  function openVariantModalForm() {
+    setShowVariantModalForm(true);
+    setEditingVarian(null);
+    setVariantForm({ nama: "", harga: "", stok: "" });
+  }
+
+  // 🔹 Buka modal edit variant
+  function openEditVariant(v) {
+    setEditingVarian(v);
+    setVariantForm({
+      nama: v.nama_varian,
+      harga: v.harga_varian?.toString() || "",
+      stok: v.stok_varian?.toString() || ""
+    });
+    setShowVariantModalForm(true);
   }
   
   async function handleDeleteVarian(id_varian) {
@@ -387,10 +448,56 @@ export default function ProdukTab() {
       const v = await getVarianByProduk(selectedProduk.id_produk);
       setVarianList(v || []);
       setVariantForm({ nama: "", harga: "", stok: "" });
+      setShowVariantModalForm(false); // 🔹 Tutup modal setelah submit
       await loadAll();
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Gagal menyimpan varian");
+    }
+  }
+
+  // 🔹 Submit add-on
+  async function submitAddOn(e) {
+    e.preventDefault();
+    const { nama, harga } = addOnForm;
+    if (!nama.trim()) return toast.error("Nama add-on wajib diisi");
+    try {
+      if (editingAddOn) {
+        await updateAddOn(editingAddOn.id_add_on, nama, Number(harga));
+        toast.success("Add-on berhasil diperbarui");
+        setAddOnList(prev =>
+          prev.map(a => 
+            a.id_add_on === editingAddOn.id_add_on 
+              ? { ...a, nama_add_on: nama, harga_add_on: Number(harga) } 
+              : a
+          )
+        );
+        setEditingAddOn(null);
+      } else {
+        const newAddOns = await addAddOn(selectedProduk.id_produk, nama, Number(harga));
+        if (!newAddOns || !Array.isArray(newAddOns) || newAddOns.length === 0) {
+          throw new Error("Gagal menambahkan add-on: respons kosong dari server");
+        }
+        const newAddOn = newAddOns[0];
+        setAddOnList(prev => [...prev, newAddOn]);
+        toast.success("Add-on berhasil ditambahkan");
+      }
+      setAddOnForm({ nama: "", harga: "" });
+      setShowAddOnModal(false); // 🔹 Tutup modal setelah submit
+    } catch (err) {
+      console.error("Error saat menyimpan add-on:", err);
+      toast.error(err.message || "Gagal menyimpan add-on. Coba lagi.");
+    }
+  }
+
+  // 🔹 Hapus add-on
+  async function handleDeleteAddOn(id_add_on) {
+    try {
+      await deleteAddOn(id_add_on);
+      toast.success("Add-on berhasil dihapus");
+      setAddOnList(prev => prev.filter(x => x.id_add_on !== id_add_on));
+    } catch (err) {
+      toast.error(err.message || "Gagal menghapus add-on");
     }
   }
   
@@ -446,7 +553,7 @@ export default function ProdukTab() {
               className="flex-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
             >
               <Settings className="h-3 w-3 mr-1" />
-              Varian
+              Settings
             </Button>
             <Button
               size="sm"
@@ -463,10 +570,20 @@ export default function ProdukTab() {
               <Button
                 size="sm"
                 variant="destructive"
-                className="w-full text-xs bg-[#A65C37] hover:bg-[#7f4629] text-white"
+                disabled={deletingProdukId === p.id_produk} // Disable saat loading
+                className="w-full text-xs bg-[#A65C37] hover:bg-[#7f4629] text-white disabled:opacity-50"
               >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Hapus
+                {deletingProdukId === p.id_produk ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Menghapus...
+                  </div>
+                ) : (
+                  <>
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Hapus
+                  </>
+                )}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -474,16 +591,29 @@ export default function ProdukTab() {
                 <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
                 <AlertDialogDescription>
                   Apakah Anda yakin ingin menghapus {p.nama_produk}? 
-                  Semua varian akan ikut terhapus dan tindakan ini tidak dapat dibatalkan.
+                  Semua varian, add-ons, dan tanggal ready akan ikut terhapus dan tindakan ini tidak dapat dibatalkan.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel className="bg-[#E2DCD8] hover:bg-[#c7c3c1] border-black">Batal</AlertDialogCancel>
+                <AlertDialogCancel 
+                  disabled={deletingProdukId === p.id_produk} // Disable cancel saat loading
+                  className="bg-[#E2DCD8] hover:bg-[#c7c3c1] border-black disabled:opacity-50"
+                >
+                  Batal
+                </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => handleDeleteProduk(p.id_produk)}
-                  className="bg-[#A65C37] hover:bg-[#7f4629]"
+                  disabled={deletingProdukId === p.id_produk} // Disable saat loading
+                  className="bg-[#A65C37] hover:bg-[#7f4629] text-white disabled:opacity-50"
                 >
-                  Hapus
+                  {deletingProdukId === p.id_produk ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Menghapus...
+                    </div>
+                  ) : (
+                    "Hapus"
+                  )}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -532,8 +662,17 @@ export default function ProdukTab() {
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20">
-                <Trash2 className="h-4 w-4" />
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                disabled={deletingProdukId === p.id_produk}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+              >
+                {deletingProdukId === p.id_produk ? (
+                  <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -541,15 +680,26 @@ export default function ProdukTab() {
                 <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
                 <AlertDialogDescription>
                   Apakah Anda yakin ingin menghapus {p.nama_produk}?
+                  Semua varian, add-ons, dan tanggal ready akan ikut terhapus dan tindakan ini tidak dapat dibatalkan.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogCancel disabled={deletingProdukId === p.id_produk}>
+                  Batal
+                </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => handleDeleteProduk(p.id_produk)}
-                  className="bg-red-600 hover:bg-red-700"
+                  disabled={deletingProdukId === p.id_produk}
+                  className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
                 >
-                  Hapus
+                  {deletingProdukId === p.id_produk ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Menghapus...
+                    </div>
+                  ) : (
+                    "Hapus"
+                  )}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -721,6 +871,7 @@ export default function ProdukTab() {
                   placeholder="Masukkan nama produk..."
                   defaultValue={editingProduk?.nama_produk || ""} 
                   className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                  disabled={submittingProduk}
                 />
               </div>
               <div className="space-y-2">
@@ -730,6 +881,7 @@ export default function ProdukTab() {
                   ref={categoryRef} 
                   defaultValue={editingProduk?.id_kategori || ""} 
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={submittingProduk}
                 >
                   <option value="">-- Pilih kategori --</option>
                   {categories.map((c) => (
@@ -749,6 +901,7 @@ export default function ProdukTab() {
                 defaultValue={editingProduk?.deskripsi || ""}
                 rows={4}
                 className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                disabled={submittingProduk}
               />
             </div>
             <div className="space-y-2">
@@ -774,23 +927,24 @@ export default function ProdukTab() {
               )}
 
               {/* Preview gambar baru yang dipilih */}
-                {imagePreviews.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Gambar baru yang dipilih:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {imagePreviews.map((url, i) => (
-                        <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border">
-                          <Image 
-                            src={url} 
-                            alt={`preview-${i}`} 
-                            fill 
-                            className="object-cover"
-                          />
-                        </div>
-                      ))}
-                    </div>
+              {imagePreviews.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Gambar baru yang dipilih:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {imagePreviews.map((url, i) => (
+                      <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border">
+                        <Image 
+                          src={url} 
+                          alt={`preview-${i}`} 
+                          fill 
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
+              
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <input 
@@ -801,12 +955,14 @@ export default function ProdukTab() {
                     onChange={handleFileChange}
                     multiple 
                     className="hidden"
+                    disabled={submittingProduk}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => filesRef.current?.click()}
                     className="w-full bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    disabled={submittingProduk}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     Pilih Gambar (JPG/PNG)
@@ -815,6 +971,7 @@ export default function ProdukTab() {
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 * Anda dapat memilih beberapa gambar sekaligus
+                {editingProduk && " - Gambar lama akan diganti dengan yang baru"}
               </p>
             </div>
             <DialogFooter className="flex gap-2">
@@ -823,21 +980,30 @@ export default function ProdukTab() {
                 variant="outline"
                 onClick={() => setShowAddModal(false)}
                 className="bg-[#E2DCD8] border-black text-gray-800"
+                disabled={submittingProduk}
               >
                 Batal
               </Button>
               <Button 
                 type="submit"
-                className="bg-[#A65C37] hover:bg-[#7f4629] text-white"
+                disabled={submittingProduk}
+                className="bg-[#A65C37] hover:bg-[#7f4629] text-white disabled:opacity-50"
               >
-                {editingProduk ? "Perbarui Produk" : "Tambah Produk"}
+                {submittingProduk ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {editingProduk ? "Memperbarui..." : "Menambahkan..."}
+                  </div>
+                ) : (
+                  editingProduk ? "Perbarui Produk" : "Tambah Produk"
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
       
-      {/* Modal Varian - Diperbaiki untuk Edit/Delete */}
+      {/* Modal Settings - DIPERBAIKI: Form variant dihapus dari sini */}
       <Dialog 
         open={showVariantModal} 
         onOpenChange={(open) => {
@@ -852,16 +1018,27 @@ export default function ProdukTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-blue-600" />
-              Varian Produk - {selectedProduk?.nama_produk}
+              Settings Produk - {selectedProduk?.nama_produk}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
             {/* Existing Variants */}
             <div>
-              <h4 className="font-medium mb-4 flex items-center gap-2 text-gray-900">
-                <Tag className="h-4 w-4" />
-                Daftar Varian ({varianList.length})
-              </h4>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium flex items-center gap-2 text-gray-900">
+                  <Tag className="h-4 w-4" />
+                  Daftar Varian ({varianList.length})
+                </h4>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 bg-green-50 text-green-700 hover:bg-green-100"
+                  onClick={openVariantModalForm} // 🔹 DIPERBAIKI: Buka modal terpisah
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Tambah Varian
+                </Button>
+              </div>
               {varianList.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-lg">
                   <Tag className="h-8 w-8 mx-auto text-gray-300 mb-2" />
@@ -887,14 +1064,7 @@ export default function ProdukTab() {
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            onClick={() => {
-                              setEditingVarian(v);
-                              setVariantForm({
-                                nama: v.nama_varian,
-                                harga: v.harga_varian?.toString() || "",
-                                stok: v.stok_varian?.toString() || ""
-                              });
-                            }}
+                            onClick={() => openEditVariant(v)} // 🔹 DIPERBAIKI: Buka modal edit
                             className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
                           >
                             <Edit3 className="h-3 w-3" />
@@ -917,22 +1087,22 @@ export default function ProdukTab() {
 
             {/* ===== ADD-ONS SECTION ===== */}
             <div>
-              <h4 className="font-medium mb-4 flex items-center gap-2 text-gray-900">
-                <Tag className="h-4 w-4" />
-                Add-ons ({addOnList.length})
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium flex items-center gap-2 text-gray-900">
+                  <Tag className="h-4 w-4" />
+                  Add-ons ({addOnList.length})
+                </h4>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="ml-auto text-xs h-7 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300"
-                  onClick={() => {
-                    setEditingAddOn(null);
-                    setAddOnForm({ nama: "", harga: "" });
-                  }}
+                  className="text-xs h-7 bg-green-50 text-green-700 hover:bg-green-100"
+                  onClick={openAddOnModal}
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Tambah Add-on
                 </Button>
-              </h4>
+              </div>
+              
               {addOnList.length === 0 ? (
                 <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 mb-2">
@@ -965,6 +1135,7 @@ export default function ProdukTab() {
                                 nama: a.nama_add_on,
                                 harga: String(a.harga_add_on)
                               });
+                              setShowAddOnModal(true);
                             }}
                             className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700"
                           >
@@ -975,14 +1146,7 @@ export default function ProdukTab() {
                             variant="ghost"
                             onClick={() => {
                               if (confirm(`Hapus add-on "${a.nama_add_on}"?`)) {
-                                deleteAddOn(a.id_add_on)
-                                  .then(() => {
-                                    toast.success("Add-on berhasil dihapus");
-                                    setAddOnList(prev => prev.filter(x => x.id_add_on !== a.id_add_on));
-                                  })
-                                  .catch(err => {
-                                    toast.error(err.message || "Gagal menghapus add-on");
-                                  });
+                                handleDeleteAddOn(a.id_add_on);
                               }
                             }}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -997,92 +1161,8 @@ export default function ProdukTab() {
               )}
             </div>
 
-            {/* Form Add-on Baru/Update */}
-            <div className="border-t pt-6">
-              <h4 className="font-medium mb-3 text-gray-900">
-                {editingAddOn ? "Edit Add-on" : "Tambah Add-on"}
-              </h4>
-              <form 
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const { nama, harga } = addOnForm;
-                  if (!nama.trim()) return toast.error("Nama add-on wajib diisi");
-                  try {
-                    if (editingAddOn) {
-                      await updateAddOn(editingAddOn.id_add_on, nama, Number(harga));
-                      toast.success("Add-on berhasil diperbarui");
-                      setAddOnList(prev =>
-                        prev.map(a => 
-                          a.id_add_on === editingAddOn.id_add_on 
-                            ? { ...a, nama_add_on: nama, harga_add_on: Number(harga) } 
-                            : a
-                        )
-                      );
-                    } else {
-                      // ✅ Tambah add-on baru
-                      const newAddOns = await addAddOn(selectedProduk.id_produk, nama, Number(harga));
-                      // 🔹 Validasi hasil
-                      if (!newAddOns || !Array.isArray(newAddOns) || newAddOns.length === 0) {
-                        throw new Error("Gagal menambahkan add-on: respons kosong dari server");
-                      }
-                      const newAddOn = newAddOns[0];
-                      setAddOnList(prev => [...prev, newAddOn]);
-                      toast.success("Add-on berhasil ditambahkan");
-                    }
-                    setAddOnForm({ nama: "", harga: "" });
-                    setEditingAddOn(null);
-                  } catch (err) {
-                    console.error("Error saat menyimpan add-on:", err);
-                    toast.error(err.message || "Gagal menyimpan add-on. Coba lagi.");
-                  }
-                }}
-                className="space-y-3"
-              >
-                <div>
-                  <Label htmlFor="addOnName">Nama Add-on *</Label>
-                  <Input
-                    id="addOnName"
-                    placeholder="Contoh: Extra Sambal, Telur, dll"
-                    value={addOnForm.nama}
-                    onChange={(e) => setAddOnForm({ ...addOnForm, nama: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="addOnPrice">Harga Tambahan (Rp)</Label>
-                  <Input
-                    id="addOnPrice"
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={addOnForm.harga}
-                    onChange={(e) => setAddOnForm({ ...addOnForm, harga: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" className="bg-[#A65C37] hover:bg-[#7f4629] text-white">
-                    {editingAddOn ? "Perbarui Add-on" : "Tambah Add-on"}
-                  </Button>
-                  {editingAddOn && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingAddOn(null);
-                        setAddOnForm({ nama: "", harga: "" });
-                      }}
-                      className="bg-gray-100 hover:bg-gray-200"
-                    >
-                      Batal Edit
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </div>
-
             {/* ===== ATUR TANGGAL READY SECTION ===== */}
-            <div className="border-t pt-6">
+            <div>
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-medium text-gray-900 flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4" />
@@ -1093,7 +1173,6 @@ export default function ProdukTab() {
                   variant="outline"
                   className="text-xs h-7 bg-blue-50 text-blue-700 hover:bg-blue-100"
                   onClick={() => {
-                    // ✅ Hindari ambil dari state yang mungkin belum update
                     if (!selectedProduk) {
                       toast.error('Produk tidak ditemukan');
                       return;
@@ -1138,59 +1217,135 @@ export default function ProdukTab() {
                 </div>
               )}
             </div>
-
-            {/* ===== TAMBAH VARIAN BARU ===== */}
-            <div className="border-t pt-6">
-              <h4 className="font-medium mb-4 text-gray-900 dark:text-white">Tambah Varian Baru</h4>
-              <form onSubmit={submitVariant} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="variantName">Nama Varian *</Label>
-                    <Input
-                      id="variantName"
-                      placeholder="Contoh: Ukuran L, Merah, dll"
-                      value={variantForm.nama}
-                      onChange={(e) => setVariantForm({...variantForm, nama: e.target.value})}
-                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="variantPrice">Harga</Label>
-                    <Input
-                      id="variantPrice"
-                      type="number"
-                      placeholder="0"
-                      value={variantForm.harga}
-                      onChange={(e) => setVariantForm({...variantForm, harga: e.target.value})}
-                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="variantStock">Stok</Label>
-                    <Input
-                      id="variantStock"
-                      type="number"
-                      placeholder="0"
-                      value={variantForm.stok}
-                      onChange={(e) => setVariantForm({...variantForm, stok: e.target.value})}
-                      className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="submit" 
-                    disabled={!variantForm.nama.trim()}
-                    className="bg-[#A65C37] text-white hover:bg-[#7f4629]"
-                  >
-                    {editingVarian ? "Perbarui Varian" : "Tambah Varian"}
-                  </Button>
-                </div>
-              </form>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 🔹 Modal: Tambah/Edit Add-ons Terpisah */}
+      <Dialog open={showAddOnModal} onOpenChange={setShowAddOnModal}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-green-600" />
+              {editingAddOn ? "Edit Add-on" : "Tambah Add-on"} - {selectedProduk?.nama_produk}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={submitAddOn} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="addOnName">Nama Add-on *</Label>
+              <Input
+                id="addOnName"
+                placeholder="Contoh: Extra Sambal, Telur, dll"
+                value={addOnForm.nama}
+                onChange={(e) => setAddOnForm({ ...addOnForm, nama: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="addOnPrice">Harga Tambahan (Rp)</Label>
+              <Input
+                id="addOnPrice"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={addOnForm.harga}
+                onChange={(e) => setAddOnForm({ ...addOnForm, harga: e.target.value })}
+                required
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button type="submit" className="bg-[#A65C37] hover:bg-[#7f4629] text-white">
+                {editingAddOn ? "Perbarui Add-on" : "Tambah Add-on"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowAddOnModal(false);
+                  setEditingAddOn(null);
+                  setAddOnForm({ nama: "", harga: "" });
+                }}
+                className="bg-gray-100 hover:bg-gray-200"
+              >
+                Batal
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🔹 Modal: Tambah/Edit Variant Terpisah */}
+      <Dialog open={showVariantModalForm} onOpenChange={setShowVariantModalForm}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-blue-600" />
+              {editingVarian ? "Edit Varian" : "Tambah Varian"} - {selectedProduk?.nama_produk}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={submitVariant} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="variantName">Nama Varian *</Label>
+              <Input
+                id="variantName"
+                placeholder="Contoh: Ukuran L, Merah, dll"
+                value={variantForm.nama}
+                onChange={(e) => setVariantForm({...variantForm, nama: e.target.value})}
+                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="variantPrice">Harga</Label>
+                <Input
+                  id="variantPrice"
+                  type="number"
+                  placeholder="0"
+                  value={variantForm.harga}
+                  onChange={(e) => setVariantForm({...variantForm, harga: e.target.value})}
+                  className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variantStock">Stok</Label>
+                <Input
+                  id="variantStock"
+                  type="number"
+                  placeholder="0"
+                  value={variantForm.stok}
+                  onChange={(e) => setVariantForm({...variantForm, stok: e.target.value})}
+                  className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button 
+                type="submit" 
+                disabled={!variantForm.nama.trim()}
+                className="bg-[#A65C37] text-white hover:bg-[#7f4629]"
+              >
+                {editingVarian ? "Perbarui Varian" : "Tambah Varian"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowVariantModalForm(false);
+                  setEditingVarian(null);
+                  setVariantForm({ nama: "", harga: "", stok: "" });
+                }}
+                className="bg-gray-100 hover:bg-gray-200"
+              >
+                Batal
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+      
       {/* 🔹 Modal: Atur Tanggal Ready */}
       <Dialog open={showReadyDateModal} onOpenChange={setShowReadyDateModal}>
         <DialogContent className="sm:max-w-md bg-white">
