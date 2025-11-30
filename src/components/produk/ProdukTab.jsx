@@ -293,8 +293,14 @@ export default function ProdukTab() {
   async function handleDeleteProduk(id) {
     setDeletingProdukId(id);
     try {
-      await deleteProduk(id);
-      toast.success("Produk berhasil dihapus");
+      const result = await deleteProduk(id);
+      
+      if (result.type === 'soft_delete') {
+        toast.success("Produk ditandai sebagai dihapus (masih ada data pesanan terkait)");
+      } else {
+        toast.success("Produk berhasil dihapus permanen");
+      }
+      
       await loadAll();
     } catch (err) {
       console.error(err);

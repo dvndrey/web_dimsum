@@ -34,6 +34,7 @@ import {
   Eye,
   RefreshCw,
   Search,
+  Plus,
 } from "lucide-react";
 
 const STATUS_CONFIG = {
@@ -148,6 +149,11 @@ export default function PesananTab() {
     setSelectedOrder(order);
     setIsDetailOpen(true);
   }
+
+  // Fungsi untuk menghitung subtotal add-ons per item
+  const calculateAddOnsSubtotal = (addOns) => {
+    return addOns.reduce((total, addon) => total + (addon.subtotal_add_on || 0), 0);
+  };
 
   return (
     <div>
@@ -379,7 +385,7 @@ export default function PesananTab() {
       {/* Detail Modal */}
       {selectedOrder && (
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-4xl w-[95vw] mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5 text-blue-600" />
@@ -403,7 +409,13 @@ export default function PesananTab() {
                   </div>
                   <div>
                     <span>No HP:</span>{" "}
-                    <a href={`https://wa.me/${selectedOrder.pembeli.nomer_pembeli}`} target="_blank">{selectedOrder.pembeli.nomer_pembeli}</a>
+                    <a 
+                      href={`https://wa.me/${selectedOrder.pembeli.nomer_pembeli}`} 
+                      target="_blank"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      {selectedOrder.pembeli.nomer_pembeli}
+                    </a>
                   </div>
                   <div className="md:col-span-2">
                     <span>Alamat:</span>{" "}
@@ -415,33 +427,92 @@ export default function PesananTab() {
               {/* Items */}
               <div>
                 <h3 className="font-medium text-gray-900 mb-3">Item Pesanan</h3>
-                <div className="space-y-3">
-                  {selectedOrder.pesanan_item.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-gray-100 rounded">
-                      <div>
-                        <div className="font-sm">{item.produk.nama_produk} - {item.varian.nama_varian}</div>
-                        <div className="text-sm text-gray-600"></div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          x{item.jumlah_item} • Rp{Number(item.harga_satuan).toLocaleString("id-ID")}
+                <div className="space-y-4">
+                  {selectedOrder.pesanan_item.map((item, idx) => {
+                    const addOnsSubtotal = calculateAddOnsSubtotal(item.pesanan_item_add_on || []);
+                    const itemTotal = (item.subtotal_item || 0) + addOnsSubtotal;
+                    
+                    return (
+                      <div key={idx} className="p-4 bg-gray-50 rounded-lg border">
+                        {/* Product & Variant Info */}
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {item.produk.nama_produk} - {item.varian.nama_varian}
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {item.jumlah_item} × Rp{Number(item.harga_satuan).toLocaleString("id-ID")}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-gray-900">
+                              Rp{Number(item.subtotal_item).toLocaleString("id-ID")}
+                            </div>
+                            {addOnsSubtotal > 0 && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                + Rp{Number(addOnsSubtotal).toLocaleString("id-ID")} (add-ons)
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Add-ons Section */}
+                        {item.pesanan_item_add_on && item.pesanan_item_add_on.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-1 mb-2">
+                              <Plus className="h-3 w-3 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-700">Tambahan:</span>
+                            </div>
+                            <div className="space-y-2 ml-4">
+                              {item.pesanan_item_add_on.map((addon, addonIdx) => (
+                                <div key={addonIdx} className="flex justify-between items-center text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-600">{addon.add_ons.nama_add_on}</span>
+                                    <span className="text-xs text-gray-500">×{addon.qty}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-gray-700">
+                                      Rp{Number(addon.harga_add_on).toLocaleString("id-ID")}
+                                    </div>
+                                    {addon.subtotal_add_on > 0 && (
+                                      <div className="text-xs text-gray-500">
+                                        Sub: Rp{Number(addon.subtotal_add_on).toLocaleString("id-ID")}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Item Total */}
+                        <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Total Item:</span>
+                          <span className="font-medium text-gray-900">
+                            Rp{Number(itemTotal).toLocaleString("id-ID")}
+                          </span>
                         </div>
                       </div>
-                      <div className="font-sm">
-                        Rp{Number(item.subtotal_item).toLocaleString("id-ID")}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Total */}
               <div className="border-t pt-4 flex justify-between font-bold text-lg">
-                <span>Total:</span>
+                <span>Total Pesanan:</span>
                 <span>Rp{Number(selectedOrder.total_harga).toLocaleString("id-ID")}</span>
               </div>
             </div>
 
           <DialogFooter>
-            <Button className="bg-[#A65C37] text-white hover:bg-[#7f4629] border-black" onClick={() => setIsDetailOpen(false)}>Tutup</Button>
+            <Button 
+              className="bg-[#A65C37] text-white hover:bg-[#7f4629] border-black" 
+              onClick={() => setIsDetailOpen(false)}
+            >
+              Tutup
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

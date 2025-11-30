@@ -45,6 +45,7 @@ export default function HomePage() {
   const [modalLoading, setModalLoading] = useState(false);
   const [modalVariants, setModalVariants] = useState([]);
   const [selectedVariants, setSelectedVariants] = useState({});
+  const [loadingProducts, setLoadingProducts] = useState(new Set());
 
   // 🔹 Ready dates untuk produk yang dipilih
   const [selectedProductReadyDates, setSelectedProductReadyDates] = useState([]);
@@ -73,6 +74,20 @@ export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // ✅ Effect untuk mencegah scroll body ketika modal terbuka
+  useEffect(() => {
+    if (isModalOpen || isConfirmModalOpen || isImageModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup function
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isModalOpen, isConfirmModalOpen, isImageModalOpen]);
+
   // ✅ Format rupiah dengan useCallback
   const formatRupiah = useCallback((angka) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka), []);
@@ -97,6 +112,10 @@ export default function HomePage() {
             });
             getAddOnsByProduk(product.id_produk).then(addOns => {
               addOnCache.set(product.id_produk, addOns);
+            });
+            // 🔹 Prefetch ready dates juga
+            getReadyDates(product.id_produk).then(readyDates => {
+              readyDateCache.set(product.id_produk, readyDates);
             });
           });
         }
@@ -140,6 +159,9 @@ export default function HomePage() {
   // ✅ Buka modal produk - OPTIMIZED: gunakan cache
   const openVariantModal = useCallback(async (product) => {
     try {
+      // 🔹 Set loading state untuk produk ini
+      setLoadingProducts(prev => new Set(prev).add(product.id_produk));
+      
       setModalLoading(true);
       setSelectedProduct(product);
       setSelectedVariants({});
@@ -161,20 +183,33 @@ export default function HomePage() {
       }
       setModalAddOns(addOns);
 
-      // 🔹 🔹 🔹 AMBIL READY DATES — BARU!
-      let readyDates = readyDateCache.get(product.id_produk);
-      if (!readyDates) {
-        readyDates = await getReadyDates(product.id_produk);
-        readyDateCache.set(product.id_produk, readyDates);
+      // 🔹 Ambil ready dates — dengan error handling
+      let readyDates = [];
+      try {
+        readyDates = readyDateCache.get(product.id_produk);
+        if (!readyDates) {
+          readyDates = await getReadyDates(product.id_produk);
+          readyDateCache.set(product.id_produk, readyDates);
+        }
+      } catch (err) {
+        console.error('Gagal memuat ready dates:', err);
+        // Tetapkan array kosong jika error
+        readyDates = [];
       }
       setSelectedProductReadyDates(readyDates);
 
       setIsModalOpen(true);
     } catch (err) {
-      console.error('Gagal memuat varian/add-ons/ready dates:', err);
+      console.error('Gagal memuat varian/add-ons:', err);
       toast.error('Gagal memuat data produk');
     } finally {
       setModalLoading(false);
+      // 🔹 Hapus loading state untuk produk ini
+      setLoadingProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(product.id_produk);
+        return newSet;
+      });
     }
   }, []);
 
@@ -300,6 +335,21 @@ export default function HomePage() {
     );
   }, []);
 
+  const isProductReadyToday = useCallback((readyDates) => {
+    if (!readyDates || readyDates.length === 0) {
+      return false; // Tidak ada tanggal ready yang diset
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set ke awal hari untuk perbandingan yang akurat
+    
+    return readyDates.some(dateObj => {
+      const readyDate = new Date(dateObj.tanggal);
+      readyDate.setHours(0, 0, 0, 0);
+      return readyDate.getTime() === today.getTime();
+    });
+  }, []);
+
   const removeCartItem = useCallback((id) => {
     setCartItems(prev => prev.filter(item => item.id !== id));
     toast.success('Item dihapus dari keranjang');
@@ -399,16 +449,22 @@ export default function HomePage() {
         .replace(/[^0-9+]/g, '')
         .replace(/^0/, '+62');
 
+      // ✅ PERBAIKI: Sertakan data add_ons
       const orderItems = cartItems.map(item => ({
         id_produk: item.id_produk,
         id_varian: item.id_varian,
         jumlah_item: item.jumlah,
         harga_satuan: item.harga,
+        add_ons: item.add_ons ? item.add_ons.map(addon => ({
+          id_add_on: addon.id_add_on,
+          qty: addon.jumlah, // Perhatikan: di frontend disebut 'jumlah', di backend 'qty'
+          harga_add_on: addon.harga_add_on
+        })) : []
       }));
 
       await createOrder(
         { nama_pembeli, alamat_pembeli, nomer_pembeli: formattedNomer },
-        orderItems
+        orderItems // ✅ Sekarang termasuk add_ons
       );
 
       toast.success('Pesanan berhasil dibuat, membuka WhatsApp...');
@@ -663,6 +719,10 @@ export default function HomePage() {
                       : item.url_gambar || '/placeholder.jpg';
                     const isMatchSearch = searchQuery.trim() !== '' && 
                       item.nama_produk.toLowerCase().includes(searchQuery.toLowerCase());
+                    
+                    // 🔹 Cek apakah produk ini sedang loading
+                    const isLoading = loadingProducts.has(item.id_produk);
+                    
                     return (
                       <div
                         key={item.id_produk}
@@ -687,9 +747,21 @@ export default function HomePage() {
                           <div className="flex justify-center mt-auto">
                             <button
                               onClick={() => openVariantModal(item)}
-                              className="bg-[#A65C37] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95 cursor-pointer"
+                              disabled={isLoading}
+                              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition active:scale-95 cursor-pointer min-w-[120px] ${
+                                isLoading 
+                                  ? 'bg-gray-400 text-white cursor-not-allowed' 
+                                  : 'bg-[#A65C37] text-white hover:bg-[#d36e3b]'
+                              }`}
                             >
-                              Lihat Produk
+                              {isLoading ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  Loading...
+                                </>
+                              ) : (
+                                'Lihat Produk'
+                              )}
                             </button>
                           </div>
                         </div>
@@ -931,8 +1003,8 @@ export default function HomePage() {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
             onClick={e => e.stopPropagation()}
           >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all">
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[70vh] md:max-h-[70vh] overflow-y-auto flex flex-col">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-.416 1.088-.416 1.514 0L12 4.5l.169.169m-1.316 6.842a1.5 1.5 0 112.688 0 1.5 1.5 0 01-2.688 0z" />
@@ -943,199 +1015,240 @@ export default function HomePage() {
                 <button onClick={closeVariantModal} className="text-gray-500 hover:text-gray-700 text-xl font-bold active:scale-95">×</button>
               </div>
 
-              <div className="flex flex-col md:flex-row max-h-[70vh] overflow-y-auto">
-                <div className="flex-shrink-0 w-full md:w-1/2 p-4 bg-gray-50 flex flex-col items-center md:items-start">
-                  <div className="relative w-full h-64 md:h-72 mb-4">
-                    <Image
-                      src={Array.isArray(selectedProduct.url_gambar) ? selectedProduct.url_gambar[0] || '/placeholder.jpg' : selectedProduct.url_gambar || '/placeholder.jpg'}
-                      alt={selectedProduct.nama_produk}
-                      fill
-                      className="object-cover rounded-lg cursor-pointer"
-                      onClick={() => setIsImageModalOpen(true)}
-                    />
-                    <button
-                      onClick={() => setIsImageModalOpen(true)}
-                      className="absolute bottom-2 right-2 bg-white/80 hover:bg-white p-2 rounded-full shadow active:scale-95"
-                      aria-label="Lihat gambar penuh"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </button>
-                  </div>
-                  <h4 className="text-lg font-bold mb-2">{selectedProduct.nama_produk}</h4>
-                  {selectedProduct.deskripsi && <p className="text-sm text-gray-700 text-center md:text-left mb-4">{selectedProduct.deskripsi}</p>}
-
-                  {/* 🔹 TANGGAL READY — DI BAWAH DESKRIPSI */}
-                  {selectedProductReadyDates.length > 0 && (
-                    <div className="mt-2">
-                      <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                        {selectedProductReadyDates
-                          .map(d => ({
-                            ...d,
-                            dateObj: new Date(d.tanggal)
-                          }))
-                          .sort((a, b) => a.dateObj - b.dateObj)
-                          .map((item, idx) => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const isPast = item.dateObj < today;
-
-                            // Format: Sen, 27 Nov
-                            const formatted = item.dateObj.toLocaleDateString('id-ID', {
-                              weekday: 'short',
-                              day: 'numeric',
-                              month: 'short'
-                            });
-
-                            return (
-                              <span
-                                key={item.id_ready || idx}
-                                className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${
-                                  isPast
-                                    ? 'bg-red-100 text-red-800 line-through'
-                                    : 'bg-green-100 text-green-800'
-                                }`}
-                              >
-                                📅 {formatted}
-                              </span>
-                            );
-                          })}
-                      </div>
+              {/* Konten utama yang bisa di-scroll */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="flex flex-col md:flex-row">
+                  <div className="flex-shrink-0 w-full md:w-1/2 p-4 bg-gray-50 flex flex-col items-center md:items-start">
+                    <div className="relative w-full h-64 md:h-72 mb-4">
+                      <Image
+                        src={Array.isArray(selectedProduct.url_gambar) ? selectedProduct.url_gambar[0] || '/placeholder.jpg' : selectedProduct.url_gambar || '/placeholder.jpg'}
+                        alt={selectedProduct.nama_produk}
+                        fill
+                        className="object-cover rounded-lg cursor-pointer"
+                        onClick={() => setIsImageModalOpen(true)}
+                      />
+                      <button
+                        onClick={() => setIsImageModalOpen(true)}
+                        className="absolute bottom-2 right-2 bg-white/80 hover:bg-white p-2 rounded-full shadow active:scale-95"
+                        aria-label="Lihat gambar penuh"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </button>
                     </div>
-                  )}
-                </div>
-                <div className="flex-grow p-4 border-t md:border-l border-gray-200">
-                  <h5 className="text-sm font-medium text-gray-600 mb-3">
-                    {modalLoading ? 'Memuat varian...' : `Varian (${modalVariants.length})`}
-                  </h5>
-                  {modalLoading ? (
-                    <div className="flex justify-center py-6">
-                      <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#A65C37] border-r-transparent"></div>
-                    </div>
-                  ) : modalVariants.length === 0 ? (
-                    <p className="text-gray-500 text-center py-4">Belum ada varian tersedia.</p>
-                  ) : (
-                    <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
-                      {modalVariants.map(variant => {
-                        const qty = selectedVariants[variant.id_varian] || 0;
-                        const addOnsForThisVariant = selectedAddOns[variant.id_varian] || {};
-                        return (
-                          <div key={variant.id_varian} className={`p-3 rounded-lg border transition-all ${
-                            variant.stok_varian <= 0 
-                              ? 'bg-gray-100 border-gray-300 text-gray-500' 
-                              : qty > 0 
-                                ? 'bg-[#ededed] border-[#d36e3b]' 
-                                : 'border-gray-200 hover:bg-slate-200'
+                    <h4 className="text-lg font-bold mb-2">{selectedProduct.nama_produk}</h4>
+                    {selectedProduct.deskripsi && <p className="text-sm text-gray-700 text-center md:text-left mb-4">{selectedProduct.deskripsi}</p>}
+
+                    {/* 🔹 TANGGAL READY — DI BAWAH DESKRIPSI */}
+                    <div className="mt-2 w-full">
+                      {selectedProductReadyDates.length === 0 ? (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                          <p className="text-red-600 text-sm font-medium">⚠️ Produk belum disetting tanggal ready</p>
+                          <p className="text-red-500 text-xs mt-1">Silakan hubungi admin untuk informasi ketersediaan</p>
+                        </div>
+                      ) : (
+                        <div className={`rounded-lg p-3 text-center ${
+                          isProductReadyToday(selectedProductReadyDates) 
+                            ? 'bg-green-50 border border-green-200' 
+                            : 'bg-yellow-50 border border-yellow-200'
+                        }`}>
+                          <p className={`text-sm font-medium ${
+                            isProductReadyToday(selectedProductReadyDates) ? 'text-green-600' : 'text-yellow-600'
                           }`}>
-                            <div className="flex justify-between">
-                              <div>
-                                <h5 className="font-medium">{variant.nama_varian}</h5>
-                                <p className="text-xs text-gray-500 mt-1">Stok: {variant.stok_varian}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-bold text-[#A65C37]">
-                                  Rp {variant.harga_varian?.toLocaleString('id-ID')}
-                                </p>
-                                {variant.stok_varian > 0 && (
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <button 
-                                      onClick={() => updateVariantQuantity(variant.id_varian, -1)} 
-                                      className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
-                                    >
-                                      −
-                                    </button>
-                                    <span className="w-6 text-center">{qty}</span>
-                                    <button 
-                                      onClick={() => updateVariantQuantity(variant.id_varian, 1)} 
-                                      disabled={qty >= variant.stok_varian}
-                                      className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${qty >= variant.stok_varian ? 'opacity-50' : ''}`}
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                            {isProductReadyToday(selectedProductReadyDates) ? '✅ READY HARI INI' : '⚠️ BELUM READY HARI INI'}
+                          </p>
+                          <div className="flex flex-wrap gap-1 justify-center mt-2">
+                            {selectedProductReadyDates
+                              .map(d => ({
+                                ...d,
+                                dateObj: new Date(d.tanggal)
+                              }))
+                              .sort((a, b) => a.dateObj - b.dateObj)
+                              .map((item, idx) => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const isToday = item.dateObj.getTime() === today.getTime();
+                                const isPast = item.dateObj < today;
 
-                            {/* ✅ Add-ons Section — HANYA DI SINI (langsung di bawah tombol +/-) */}
-                            {qty > 0 && modalAddOns.length > 0 && (
-                              <div className="mt-4 pt-4 border-t border-gray-200">
-                                <h6 className="text-sm font-medium text-gray-600 mb-2">
-                                  Tambahkan Pelengkap (1 pilihan)
-                                </h6>
-                                <div className="space-y-2">
-                                  {modalAddOns.map(addOn => {
-                                    // ✅ Gunakan akses object langsung — TIDAK PAKAI .find()
-                                    const currentQty = addOnsForThisVariant[addOn.id_add_on] || 0;
+                                const formatted = item.dateObj.toLocaleDateString('id-ID', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short'
+                                });
 
-                                    return (
-                                      <div key={addOn.id_add_on} className="flex justify-between items-center py-1">
-                                        <div className="flex-1">
-                                          <h6 className="font-medium text-gray-900">{addOn.nama_add_on}</h6>
-                                          <p className="text-xs text-gray-500">+{formatRupiah(addOn.harga_add_on)}</p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                          <button 
-                                            onClick={() => updateAddOnQuantity(variant.id_varian, addOn.id_add_on, -1)} 
-                                            className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${
-                                              currentQty === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`}
-                                            disabled={currentQty === 0}
-                                          >
-                                            −
-                                          </button>
-                                          <span className="w-6 text-center">{currentQty}</span>
-                                          <button 
-                                            onClick={() => updateAddOnQuantity(variant.id_varian, addOn.id_add_on, 1)} 
-                                            className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${
-                                              currentQty >= 1 ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`}
-                                            disabled={currentQty >= 1}
-                                          >
-                                            +
-                                          </button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
+                                return (
+                                  <span
+                                    key={item.id_ready || idx}
+                                    className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${
+                                      isToday
+                                        ? 'bg-green-100 text-green-800 border border-green-300'
+                                        : isPast
+                                          ? 'bg-red-100 text-red-800 line-through'
+                                          : 'bg-blue-100 text-blue-800'
+                                    }`}
+                                  >
+                                    📅 {formatted}
+                                  </span>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-grow p-4 border-t md:border-l border-gray-200">
+                    <h5 className="text-sm font-medium text-gray-600 mb-3">
+                      {modalLoading ? 'Memuat varian...' : `Varian (${modalVariants.length})`}
+                    </h5>
+                    {modalLoading ? (
+                      <div className="flex justify-center py-6">
+                        <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#A65C37] border-r-transparent"></div>
+                      </div>
+                    ) : modalVariants.length === 0 ? (
+                      <p className="text-gray-500 text-center py-4">Belum ada varian tersedia.</p>
+                    ) : (
+                      <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                        {modalVariants.map(variant => {
+                          const qty = selectedVariants[variant.id_varian] || 0;
+                          const addOnsForThisVariant = selectedAddOns[variant.id_varian] || {};
+                          return (
+                            <div key={variant.id_varian} className={`p-3 rounded-lg border transition-all ${
+                              variant.stok_varian <= 0 
+                                ? 'bg-gray-100 border-gray-300 text-gray-500' 
+                                : qty > 0 
+                                  ? 'bg-[#ededed] border-[#d36e3b]' 
+                                  : 'border-gray-200 hover:bg-slate-200'
+                            }`}>
+                              <div className="flex justify-between">
+                                <div>
+                                  <h5 className="font-medium">{variant.nama_varian}</h5>
+                                  <p className="text-xs text-gray-500 mt-1">Stok: {variant.stok_varian}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-[#A65C37]">
+                                    Rp {variant.harga_varian?.toLocaleString('id-ID')}
+                                  </p>
+                                  {variant.stok_varian > 0 && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <button 
+                                        onClick={() => updateVariantQuantity(variant.id_varian, -1)} 
+                                        className="w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-6 text-center">{qty}</span>
+                                      <button 
+                                        onClick={() => updateVariantQuantity(variant.id_varian, 1)} 
+                                        disabled={qty >= variant.stok_varian}
+                                        className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${qty >= variant.stok_varian ? 'opacity-50' : ''}`}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
 
-                  {totalModalItems > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex justify-between text-sm">
-                        <span>Subtotal:</span>
-                        <span className="font-bold">{formatRupiah(modalSubtotal)}</span>
+                              {/* ✅ Add-ons Section — HANYA DI SINI (langsung di bawah tombol +/-) */}
+                              {qty > 0 && modalAddOns.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                  <h6 className="text-sm font-medium text-gray-600 mb-2">
+                                    Tambahkan Pelengkap (1 pilihan)
+                                  </h6>
+                                  <div className="space-y-2">
+                                    {modalAddOns.map(addOn => {
+                                      // ✅ Gunakan akses object langsung — TIDAK PAKAI .find()
+                                      const currentQty = addOnsForThisVariant[addOn.id_add_on] || 0;
+
+                                      return (
+                                        <div key={addOn.id_add_on} className="flex justify-between items-center py-1">
+                                          <div className="flex-1">
+                                            <h6 className="font-medium text-gray-900">{addOn.nama_add_on}</h6>
+                                            <p className="text-xs text-gray-500">+{formatRupiah(addOn.harga_add_on)}</p>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <button 
+                                              onClick={() => updateAddOnQuantity(variant.id_varian, addOn.id_add_on, -1)} 
+                                              className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${
+                                                currentQty === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                                              }`}
+                                              disabled={currentQty === 0}
+                                            >
+                                              −
+                                            </button>
+                                            <span className="w-6 text-center">{currentQty}</span>
+                                            <button 
+                                              onClick={() => updateAddOnQuantity(variant.id_varian, addOn.id_add_on, 1)} 
+                                              className={`w-6 h-6 flex items-center justify-center bg-white border rounded active:scale-95 ${
+                                                currentQty >= 1 ? 'opacity-50 cursor-not-allowed' : ''
+                                              }`}
+                                              disabled={currentQty >= 1}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex justify-between text-sm mt-1">
-                        <span>Total Item:</span>
-                        <span className="font-bold">{totalModalItems} item</span>
+                    )}
+
+                    {totalModalItems > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex justify-between text-sm">
+                          <span>Subtotal:</span>
+                          <span className="font-bold">{formatRupiah(modalSubtotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm mt-1">
+                          <span>Total Item:</span>
+                          <span className="font-bold">{totalModalItems} item</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="p-4 border-t border-gray-200 flex justify-center gap-3">
-                <button 
-                  onClick={addToCart} 
-                  className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95"
-                >
-                  Tambah Ke Keranjang
-                </button>
-                <button 
-                  onClick={closeVariantModal} 
-                  className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition active:scale-95"
-                >
-                  Tutup
-                </button>
+              <div className="p-4 border-t border-gray-200 flex flex-col md:flex-row justify-center gap-3 items-center bg-white sticky bottom-0 md:static">
+                {/* 🔹 Cek apakah produk ready hari ini */}
+                {selectedProductReadyDates.length === 0 || !isProductReadyToday(selectedProductReadyDates) ? (
+                  <div className="flex flex-col md:flex-row justify-center items-center gap-3 w-full md:w-auto">
+                    <button 
+                      disabled
+                      className="px-5 py-2 bg-gray-400 text-white rounded-lg text-sm font-medium cursor-not-allowed w-full md:w-auto max-w-xs"
+                    >
+                      Tambah Ke Keranjang
+                    </button>
+                    <button 
+                      onClick={closeVariantModal} 
+                      className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition active:scale-95 w-full md:w-auto max-w-xs"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col md:flex-row justify-center items-center gap-3 w-full md:w-auto">
+                    <button 
+                      onClick={addToCart} 
+                      className="px-5 py-2 bg-[#A65C37] text-white rounded-lg text-sm font-medium hover:bg-[#d36e3b] transition active:scale-95 w-full md:w-auto max-w-xs"
+                    >
+                      Tambah Ke Keranjang
+                    </button>
+                    <button 
+                      onClick={closeVariantModal} 
+                      className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300 transition active:scale-95 w-full md:w-auto max-w-xs"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

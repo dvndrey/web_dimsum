@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { uploadImage, deleteImages } from "./storage";
 
-// ambil semua produk
+// ambil semua produk (hanya yang tidak di-soft delete)
 export async function getProduk() {
   const { data, error } = await supabase
     .from("produk")
@@ -10,7 +10,8 @@ export async function getProduk() {
       kategori(nama_kategori),
       varian(*),
       produk_ready_date(tanggal)
-    `);
+    `)
+    .is('deleted_at', null);
 
   if (error) throw error;
   return data;
@@ -20,7 +21,6 @@ export async function getProduk() {
 export async function addProduk(nama, deskripsi, id_kategori, files) {
   const allowedTypes = ["image/jpeg", "image/png"];
   
-  // Upload gambar baru
   const urls = await Promise.all(
     files.map(async (file) => {
       if (!allowedTypes.includes(file.type)) {
@@ -42,26 +42,22 @@ export async function addProduk(nama, deskripsi, id_kategori, files) {
   return data;
 }
 
-// update produk - PERBAIKI FUNGSI INI
+// update produk
 export async function updateProduk(id, nama, deskripsi, id_kategori, files, existingImages = []) {
   let urls = [];
 
   if (files && files.length > 0) {
-    // 🔹 ADA GAMBAR BARU: Hapus gambar lama dan upload yang baru
     const allowedTypes = ["image/jpeg", "image/png"];
     
-    // Hapus gambar lama dari storage jika ada
     if (existingImages.length > 0) {
       try {
         await deleteImages(existingImages);
         console.log('Gambar lama berhasil dihapus');
       } catch (error) {
         console.error('Gagal menghapus gambar lama:', error);
-        // Lanjutkan proses meski gagal hapus gambar lama
       }
     }
 
-    // Upload gambar baru
     urls = await Promise.all(
       files.map(async (file) => {
         if (!allowedTypes.includes(file.type)) {
@@ -71,11 +67,9 @@ export async function updateProduk(id, nama, deskripsi, id_kategori, files, exis
       })
     );
   } else {
-    // 🔹 TIDAK ADA GAMBAR BARU: Gunakan gambar yang sudah ada
     urls = existingImages;
   }
 
-  // Update produk di database
   const { data, error } = await supabase
     .from("produk")
     .update({
@@ -84,13 +78,14 @@ export async function updateProduk(id, nama, deskripsi, id_kategori, files, exis
       id_kategori,
       url_gambar: urls,
     })
-    .eq("id_produk", id);
+    .eq("id_produk", id)
+    .is('deleted_at', null); // Hanya update yang tidak di-soft delete
 
   if (error) throw error;
   return data;
 }
 
-// hapus produk - GUNAKAN API ROUTE YANG SUDAH DIPERBAIKI
+// hapus produk - menggunakan API route yang sudah diperbaiki
 export async function deleteProduk(id) {
   const res = await fetch('/api/menu/delete', {
     method: 'POST',
@@ -105,4 +100,22 @@ export async function deleteProduk(id) {
   }
 
   return result;
+}
+
+// Fungsi untuk restore produk yang di-soft delete (opsional)
+export async function restoreProduk(id) {
+  const { data, error } = await supabase
+    .from('produk')
+    .update({ 
+      deleted_at: null,
+      nama_produk: (await supabase
+        .from('produk')
+        .select('nama_produk')
+        .eq('id_produk', id)
+        .single()).data?.nama_produk?.replace(/^\[DIHAPUS\].* - Produk sebelumnya: /, '') || 'Restored Product'
+    })
+    .eq('id_produk', id);
+
+  if (error) throw error;
+  return data;
 }
