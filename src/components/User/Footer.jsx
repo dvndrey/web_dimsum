@@ -54,11 +54,12 @@ export default function Footer() {
           {/* Brand Section */}
           <div className="text-center md:text-left">
             <div className="flex justify-center md:justify-start space-x-1">
-              <h2 className="text-3xl md:text-4xl font-bold">Say!</h2>
-              <h3 className="text-3xl md:text-4xl font-bold">Endulque</h3>
+              <h2 className="text-3xl md:text-4xl font-bold">
+                {owner?.hero_title || "Say! Endulque"}
+              </h2>
             </div>
-            <p className="text-sm opacity-90 max-w-xs mt-3 text-center md:text-left mx-auto md:mx-0">
-              Nikmati dimsum lezat dengan cita rasa istimewa. Rasakan pengalaman kuliner terbaik bersama kami!
+            <p className="text-sm opacity-90 max-w-xs mt-3 text-center md:text-left mx-auto md:mx-0 whitespace-pre-line">
+              {owner?.hero_subtitle || "Nikmati dimsum lezat dengan cita rasa istimewa. Rasakan pengalaman kuliner terbaik bersama kami!"}
             </p>
           </div>
 
@@ -72,8 +73,8 @@ export default function Footer() {
                 <span>{telepon}</span>
               </div>
 
-              <div className="flex items-center justify-center md:justify-end gap-2">
-                <img src="/Icons/LocationIcon.png" alt="Lokasi" className="w-5 h-5 flex-shrink-0" />
+              <div className="flex items-start justify-center md:justify-end gap-2">
+                <img src="/Icons/LocationIcon.png" alt="Lokasi" className="w-5 h-5 flex-shrink-0 mt-1" />
                 <span className="text-center md:text-right">{alamat}</span>
               </div>
 
@@ -86,7 +87,7 @@ export default function Footer() {
             {/* Social Media Icons */}
             <div className="flex justify-center md:justify-end gap-5 mt-5">
               <a
-                href="https://www.tiktok.com/@say.endulque?"
+                href={owner?.tiktok_url || "https://www.tiktok.com/@say.endulque?"}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TikTok"
@@ -95,7 +96,7 @@ export default function Footer() {
                 <img src="/Icons/TikTokIcon.png" alt="TikTok" className="w-6 h-6" />
               </a>
               <a
-                href="https://www.instagram.com/say.endulque?igsh=MTZ3NXFyOW12dmNlbA%3D%3D"
+                href={owner?.instagram_url || "https://www.instagram.com/say.endulque?igsh=MTZ3NXFyOW12dmNlbA%3D%3D"}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
@@ -109,7 +110,7 @@ export default function Footer() {
 
         {/* Copyright */}
         <div className="mt-10 pt-6 border-t border-white/30 text-center text-xs opacity-80">
-          © {new Date().getFullYear()} Say! Endulque. All rights reserved.
+          © {new Date().getFullYear()} {owner?.nama_pemilik || "Say! Endulque"}. All rights reserved.
         </div>
       </div>
     </footer>

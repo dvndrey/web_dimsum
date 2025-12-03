@@ -22,7 +22,10 @@ export async function updateData(profile, id = 2025) {
       no_hp: profile.no_hp,
       // 🔹 Tambahkan field baru
       hero_title: profile.hero_title || null,
-      hero_subtitle: profile.hero_subtitle || null
+      hero_subtitle: profile.hero_subtitle || null,
+      logo_url: profile.logo_url || null,
+      tiktok_url: profile.tiktok_url || null,
+      instagram_url: profile.instagram_url || null
     })
     .eq("id_pemilik", id)
     .single();

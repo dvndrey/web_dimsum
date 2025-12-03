@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getOwnerData, updateData } from "../../../services/ownService";
+import { uploadImage } from "../../../services/storage";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,10 @@ import {
   MapPin, 
   Phone, 
   Save,
-  Building2
+  Building2,
+  Upload,
+  Image as ImageIcon,
+  Share2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -25,7 +29,12 @@ export default function SettingsTab() {
     no_hp: "",
     hero_title: "", //Custom text on hero banner
     hero_subtitle: "",
+    logo_url: "",
+    tiktok_url: "",
+    instagram_url: "",
   });
+  const [logoFile, setLogoFile] = useState(null);
+  const [previewLogo, setPreviewLogo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -43,8 +52,14 @@ export default function SettingsTab() {
         alamat: data.alamat || "",
         no_hp: data.no_hp || "",
         hero_title: data.hero_title || "",   // 🔹 Tambahkan ini
-        hero_subtitle: data.hero_subtitle || "" // 🔹 Tambahkan ini
+        hero_subtitle: data.hero_subtitle || "", // 🔹 Tambahkan ini
+        logo_url: data.logo_url || "",
+        tiktok_url: data.tiktok_url || "",
+        instagram_url: data.instagram_url || ""
       });
+      if (data.logo_url) {
+        setPreviewLogo(data.logo_url);
+      }
     } catch (err) {
       toast.error("Gagal memuat profil toko");
     } finally {
@@ -55,6 +70,14 @@ export default function SettingsTab() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
+  }
+
+  function handleLogoChange(e) {
+    const file = e.target.files[0];
+    if (file) {
+      setLogoFile(file);
+      setPreviewLogo(URL.createObjectURL(file));
+    }
   }
   
   async function handleSubmit(e) {
@@ -69,7 +92,14 @@ export default function SettingsTab() {
     }
     try {
       setSaving(true);
-      await updateData(form);
+      setSaving(true);
+      
+      let finalLogoUrl = form.logo_url;
+      if (logoFile) {
+        finalLogoUrl = await uploadImage(logoFile);
+      }
+
+      await updateData({ ...form, logo_url: finalLogoUrl });
       toast.success("Profil toko berhasil diperbarui");
     } catch (err) {
       toast.error(err.message || "Gagal memperbarui profil");
@@ -129,6 +159,38 @@ export default function SettingsTab() {
                 className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
+            </div>
+
+            {/* Logo Toko */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+                <ImageIcon className="h-4 w-4 text-gray-500" />
+                Logo Toko
+              </Label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-20 h-20 rounded-full overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
+                  {previewLogo ? (
+                    <img 
+                      src={previewLogo} 
+                      alt="Logo Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Store className="h-8 w-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                    className="cursor-pointer"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Format: JPG, PNG. Maksimal 2MB. Disarankan rasio 1:1.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Hero Title */}
@@ -223,6 +285,48 @@ export default function SettingsTab() {
                   placeholder="Jl. Merdeka No. 123, Kota..."
                   className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+            </div>
+
+            <Separator className="my-5" />
+
+            {/* Social Media */}
+            <div>
+              <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+                <Share2 className="h-4 w-4 text-gray-500" />
+                Social Media
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* TikTok */}
+                <div className="space-y-2">
+                  <Label htmlFor="tiktok_url" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    TikTok URL
+                  </Label>
+                  <Input
+                    id="tiktok_url"
+                    name="tiktok_url"
+                    value={form.tiktok_url}
+                    onChange={handleChange}
+                    placeholder="https://www.tiktok.com/@username"
+                    className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Instagram */}
+                <div className="space-y-2">
+                  <Label htmlFor="instagram_url" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Instagram URL
+                  </Label>
+                  <Input
+                    id="instagram_url"
+                    name="instagram_url"
+                    value={form.instagram_url}
+                    onChange={handleChange}
+                    placeholder="https://www.instagram.com/username"
+                    className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
 

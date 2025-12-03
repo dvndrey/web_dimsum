@@ -1,7 +1,9 @@
 // src/components/User/NavbarTab.jsx
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { getOwnerData } from '../../../services/ownService';
 
 const NavItem = ({ children, isActive = false, onClick }) => (
   <button
@@ -16,41 +18,41 @@ const NavItem = ({ children, isActive = false, onClick }) => (
   </button>
 );
 
-const MobileHeader = () => (
+const MobileHeader = ({ logoUrl, storeName }) => (
   <header className="bg-white sticky top-0 z-50 border-b border-gray-100 font-sans md:hidden block px-4 py-3">
     <div className="flex items-center justify-center space-x-2">
       <a href="/" className="flex items-center">
         <Image 
-          src="/logo_client.png" 
-          alt="Logo Say! Endulque" 
+          src={logoUrl || "/logo_client.png"} 
+          alt={`Logo ${storeName}`} 
           width={40} 
           height={40} 
           className="rounded-full object-cover"
           priority 
         />
       </a>
-      <h1 className="text-xl font-medium text-gray-900 tracking-wider">Say! Endulque</h1>
+      <h1 className="text-xl font-medium text-gray-900 tracking-wider">{storeName || "Say! Endulque"}</h1>
     </div>
   </header>
 );
 
 // 🔹 Desktop Navbar: tombol Home/Menu/Keranjang benar-benar di tengah
-const DesktopNavbar = ({ activeView, onSwitchView }) => (
+const DesktopNavbar = ({ activeView, onSwitchView, logoUrl, storeName }) => (
   <header className="bg-white sticky top-0 z-50 border-b border-gray-100 font-sans lg:block hidden">
     <div className="container mx-auto px-6 py-5 relative">
       {/* Logo — diposisikan absolut di kiri */}
       <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center space-x-3 flex-shrink-0">
         <a href="/" className="flex items-center">
           <Image 
-            src="/logo_client.png" 
-            alt="Logo Say! Endulque" 
+            src={logoUrl || "/logo_client.png"} 
+            alt={`Logo ${storeName}`} 
             width={50} 
             height={50} 
             className="rounded-full object-cover"
             priority 
           />
         </a>
-        <h1 className="text-3xl font-medium text-gray-900 tracking-wider">Say! Endulque</h1>
+        <h1 className="text-3xl font-medium text-gray-900 tracking-wider">{storeName || "Say! Endulque"}</h1>
       </div>
 
       {/* Navigation — benar-benar tengah (horizontal center of header) */}
@@ -173,10 +175,40 @@ const TabletNav = ({ activeView, onSwitchView }) => {
 };
 
 export default function NavbarTab({ activeView = 'home', onSwitchView = () => {} }) {
+  const [storeData, setStoreData] = useState({
+    nama_pemilik: "Say! Endulque",
+    logo_url: "/logo_client.png"
+  });
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const data = await getOwnerData();
+        if (data) {
+          setStoreData({
+            nama_pemilik: data.nama_pemilik || "Say! Endulque",
+            logo_url: data.logo_url || "/logo_client.png"
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch store data:", error);
+      }
+    }
+    fetchData();
+  }, []);
+
   return (
     <>
-      <DesktopNavbar activeView={activeView} onSwitchView={onSwitchView} />
-      <MobileHeader />
+      <DesktopNavbar 
+        activeView={activeView} 
+        onSwitchView={onSwitchView} 
+        logoUrl={storeData.logo_url}
+        storeName={storeData.nama_pemilik}
+      />
+      <MobileHeader 
+        logoUrl={storeData.logo_url}
+        storeName={storeData.nama_pemilik}
+      />
       <MobileNav activeView={activeView} onSwitchView={onSwitchView} />
       <TabletNav activeView={activeView} onSwitchView={onSwitchView} />
     </>
