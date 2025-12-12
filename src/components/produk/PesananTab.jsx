@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getOrders, updateOrderStatus } from "../../../services/orderService";
+import { getOrders, updateOrderStatus, deleteOrder  } from "../../../services/orderService";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { getOrderSummary } from "../../../services/orderService";
@@ -101,6 +101,20 @@ export default function PesananTab() {
     return matchesStatus && matchesSearch;
   });
 
+
+  async function handleDeleteOrder(id) {
+    if (!confirm("Yakin ingin menghapus pesanan ini?")) return;
+  
+    try {
+      await deleteOrder(id);
+      toast.success("Pesanan berhasil dihapus");
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Gagal menghapus pesanan");
+    }
+  }
+  
   async function loadOrderSummary() {
     try {
       const data = await getOrderSummary();
@@ -311,6 +325,15 @@ export default function PesananTab() {
                           <Eye className="h-4 w-4 mr-1" />
                           Detail
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteOrder(order.id_pesanan)}
+                          className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Hapus
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -373,6 +396,14 @@ export default function PesananTab() {
                       className="text-gray-700 hover:bg-gray-100"
                     >
                       <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteOrder(order.id_pesanan)}
+                      className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
