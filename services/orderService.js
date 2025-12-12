@@ -239,3 +239,43 @@ export async function getDashboardSummary() {
 
   return { totalOrders, totalRevenue, recentOrders };
 }
+
+export async function deleteOrder(id_pesanan) {
+  // 1. Ambil semua id_item berdasarkan id_pesanan
+  const { data: items, error: itemsError } = await supabase
+    .from("pesanan_item")
+    .select("id_item")
+    .eq("id_pesanan", id_pesanan);
+
+  if (itemsError) throw itemsError;
+
+  const idItems = items.map((i) => i.id_item);
+
+  // 2. Hapus add-ons terlebih dahulu
+  if (idItems.length > 0) {
+    const { error: deleteAddOnsError } = await supabase
+      .from("pesanan_item_add_on")
+      .delete()
+      .in("id_item", idItems);
+
+    if (deleteAddOnsError) throw deleteAddOnsError;
+  }
+
+  // 3. Hapus item pesanan
+  const { error: deleteItemsError } = await supabase
+    .from("pesanan_item")
+    .delete()
+    .eq("id_pesanan", id_pesanan);
+
+  if (deleteItemsError) throw deleteItemsError;
+
+  // 4. Terakhir, hapus pesanan
+  const { error: deleteOrderError } = await supabase
+    .from("pesanan")
+    .delete()
+    .eq("id_pesanan", id_pesanan);
+
+  if (deleteOrderError) throw deleteOrderError;
+
+  return true;
+}
