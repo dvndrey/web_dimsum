@@ -13,33 +13,20 @@ import { supabase } from "../lib/supabase";
  */
 
 export async function createOrder(pembeliData, cartItems) {
-
-
   const { nama_pembeli, alamat_pembeli, nomer_pembeli } = pembeliData;
 
   // ============================================================
-  // 1. Cek atau buat pembeli berdasarkan nomor HP
+  // 1. Selalu buat pembeli baru (nomor HP boleh duplikat)
   // ============================================================
-  const { data: existingPembeli } = await supabase
+  const { data: newPembeli, error: insertPembeliError } = await supabase
     .from("pembeli")
+    .insert([{ nama_pembeli, alamat_pembeli, nomer_pembeli }])
     .select("id_pembeli")
-    .eq("nomer_pembeli", nomer_pembeli)
     .single();
 
-  let id_pembeli;
+  if (insertPembeliError) throw insertPembeliError;
 
-  if (existingPembeli) {
-    id_pembeli = existingPembeli.id_pembeli;
-  } else {
-    const { data: newPembeli, error: insertPembeliError } = await supabase
-      .from("pembeli")
-      .insert([{ nama_pembeli, alamat_pembeli, nomer_pembeli }])
-      .select("id_pembeli")
-      .single();
-
-    if (insertPembeliError) throw insertPembeliError;
-    id_pembeli = newPembeli.id_pembeli;
-  }
+  const id_pembeli = newPembeli.id_pembeli;
 
   // ============================================================
   // 2. Hitung total harga (produk + varian + add-ons)
